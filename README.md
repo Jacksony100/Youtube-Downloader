@@ -30,3 +30,6 @@ This is a desktop application for downloading YouTube videos (including age-rest
     --add-binary "ffmpeg.exe;." ^
     --add-data "icon.ico;." ^
     main.py
+## Disclaimer
+
+This software is provided "as is", without any express or implied warranties. The author is not responsible for any misuse or damages resulting from the use of this software. It is the user's sole responsibility to ensure that their use of this tool complies with all applicable laws, regulations, and YouTube's Terms of Service. By using this software, you agree that the author shall not be held liable for any legal issues, copyright infringements, or any other consequences arising from its use.
