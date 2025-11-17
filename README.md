@@ -2,7 +2,7 @@
 
 This is a desktop application for downloading YouTube videos (including age-restricted content) using [PySide6](https://pypi.org/project/PySide6/), [QtWebEngine](https://pypi.org/project/PySide6-QtWebEngine/), and [yt-dlp](https://github.com/yt-dlp/yt-dlp). It allows you to sign in to YouTube **inside** the app, capture cookies automatically, and download 4K or audio-only content.
 
-![Image](https://github.com/user-attachments/assets/02d4d5a7-3b9d-40e5-9a2d-9ffb9d99674b)
+![Image](https://github.com/Jacksony100/Youtube-Downloader/blob/main/screenshot.jpg)
 
 ## Features
 
