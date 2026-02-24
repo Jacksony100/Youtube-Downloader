@@ -78,7 +78,12 @@ if [[ ! -d "$APP_PATH" ]]; then
   exit 1
 fi
 
-# 4) Zip final .app bundle for transfer
+# 4) Normalize bundle metadata and re-sign to avoid "app is damaged" dialog
+xattr -cr "$APP_PATH"
+codesign --force --deep --sign - "$APP_PATH"
+codesign --verify --deep --strict --verbose=2 "$APP_PATH" >/dev/null
+
+# 5) Zip final .app bundle for transfer
 OUT_ZIP="dist/VideoDownloaderPro-macOS.zip"
 rm -f "$OUT_ZIP"
 ditto -c -k --sequesterRsrc --keepParent "$APP_PATH" "$OUT_ZIP"
