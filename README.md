@@ -2,7 +2,7 @@
 
 Desktop-приложение на `PySide6` + `yt-dlp` для загрузки видео и аудио с YouTube и других платформ, которые поддерживает `yt-dlp`.
 
-![App Screenshot](https://github.com/Jacksony100/Youtube-Downloader/blob/main/screenshot.jpg)
+![App Screenshot](https://raw.githubusercontent.com/Jacksony100/Youtube-Downloader/main/screenshot-2026-02-24.jpg)
 
 ## Возможности
 
