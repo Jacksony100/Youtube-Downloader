@@ -1,35 +1,114 @@
-# YouTube Downloader
+# Video Downloader Pro
 
-This is a desktop application for downloading YouTube videos (including age-restricted content) using [PySide6](https://pypi.org/project/PySide6/), [QtWebEngine](https://pypi.org/project/PySide6-QtWebEngine/), and [yt-dlp](https://github.com/yt-dlp/yt-dlp). It allows you to sign in to YouTube **inside** the app, capture cookies automatically, and download 4K or audio-only content.
+Desktop-приложение на `PySide6` + `yt-dlp` для загрузки видео и аудио с YouTube и других платформ, которые поддерживает `yt-dlp`.
 
-![Image](https://github.com/Jacksony100/Youtube-Downloader/blob/main/screenshot.jpg)
+![App Screenshot](https://github.com/Jacksony100/Youtube-Downloader/blob/main/screenshot.jpg)
 
-## Features
+## Возможности
 
-- **In-app login** to YouTube (QtWebEngine) for age-restricted videos.
-- **Multiple resolutions** (up to 4K).
-- **Audio-only** (MP3) extraction.
-- **Progress bar** and cancel button for each download.
-- **Open** the downloaded file in Windows Explorer.
-- **Dark UI** with PySide6.
+- Очередь загрузок с параллельностью от 1 до 5 задач.
+- Форматы: лучшее видео, 1080p, 720p, 480p, MP3.
+- Карточки загрузок с прогрессом, скоростью, статусом и превью.
+- Отмена отдельной загрузки и массовая отмена всех активных задач.
+- Проверка ссылки до скачивания (название, длительность, автор).
+- Авто-открытие готового файла по опции.
+- Сохранение настроек между перезапусками (папка, формат, параллельность, авто-открытие).
+- Блок помощи при сетевых ограничениях + переход на [onyshop.tech](https://onyshop.tech).
+- Меню приложения и горячие клавиши для ключевых действий.
 
-## How to Use (Run from source)
+## Требования
 
-1. Install Python 3.9+ (64-bit recommended).
-2. Clone this repository:
-   ```bash
-   git clone https://github.com/Jacksony100/youtube-downloader.git
-   cd youtube-downloader
-3. pip install pyinstaller
-4. Download ffmpeg and drop to folder "ffmpeg.exe"
-   ```bash
-   https://www.gyan.dev/ffmpeg/builds/
-5. Make the application as a whole:
-   ```bash
-   pyinstaller --onefile --noconsole ^
-    --add-binary "ffmpeg.exe;." ^
-    --add-data "icon.ico;." ^
-    main.py
+- Python `3.9+`
+- `ffmpeg` обязателен для режима `MP3`
+
+Приложение ищет `ffmpeg` так:
+
+- в системном `PATH`
+- в папке с приложением (`ffmpeg.exe` или `ffmpeg`)
+
+## Быстрый старт (из исходников)
+
+```bash
+git clone https://github.com/Jacksony100/Youtube-Downloader.git
+cd Youtube-Downloader
+python3 -m venv .venv
+source .venv/bin/activate   # Windows: .venv\Scripts\activate
+pip install -r requirements.txt
+python3 main.py
+```
+
+## Сборка релиза
+
+### macOS
+
+```bash
+./scripts/build_release.sh
+```
+
+Результат:
+
+- `dist/VideoDownloaderPro-macOS.zip`
+
+### Windows x64 (локально на Windows)
+
+```powershell
+./scripts/build_release_windows.ps1
+```
+
+Результат:
+
+- `dist\VideoDownloaderPro-win-x64.zip`
+
+### Windows x64 через GitHub Actions
+
+В репозитории есть workflow:
+
+- `.github/workflows/build-windows-x64.yml`
+
+Как запускать:
+
+1. Откройте вкладку `Actions`.
+2. Выберите `Build Windows x64`.
+3. Нажмите `Run workflow`.
+4. При необходимости включите `use_nuitka=true`.
+5. Скачайте артефакт сборки.
+
+## Горячие клавиши
+
+- `Ctrl+L` фокус на поле ссылки
+- `Ctrl+D` добавить в очередь
+- `Ctrl+I` проверить ссылку
+- `Ctrl+O` открыть папку загрузок
+- `Ctrl+Shift+C` отменить все
+- `Ctrl+Shift+X` очистить завершенные
+- `Ctrl+Q` выход
+
+## Структура проекта
+
+- `main.py` — приложение (UI, очередь, загрузки, настройки)
+- `requirements.txt` — зависимости Python
+- `scripts/build_release.sh` — сборка macOS
+- `scripts/build_release_windows.ps1` — сборка Windows x64
+- `.github/workflows/build-windows-x64.yml` — CI сборка Windows
+- `CHANGELOG.md` — журнал изменений по релизам
+
+## Донат
+
+Поддержать проект (USDT TRC20):
+
+- Адрес: `TAa2pm6veN9Jd7X93juoqvoT9WE7QxLKGq`
+- Сеть: `TRON (TRC20)`
+
+## Важно
+
+- Поддержка сайтов зависит от актуальности `yt-dlp`.
+- Если что-то перестало скачиваться, сначала обновите `yt-dlp`:
+
+```bash
+pip install -U yt-dlp
+```
+
 ## Disclaimer
 
-This software is provided "as is", without any express or implied warranties. The author is not responsible for any misuse or damages resulting from the use of this software. It is the user's sole responsibility to ensure that their use of this tool complies with all applicable laws, regulations, and YouTube's Terms of Service. By using this software, you agree that the author shall not be held liable for any legal issues, copyright infringements, or any other consequences arising from its use.
+This software is provided "as is", without warranties of any kind.
+You are responsible for compliance with local laws, copyright rules, and platform terms.
