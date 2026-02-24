@@ -1,0 +1,37 @@
+name: Build Windows x64
+
+on:
+  workflow_dispatch:
+    inputs:
+      use_nuitka:
+        description: "Use Nuitka for stronger obfuscation (slower build)"
+        required: false
+        default: "false"
+
+jobs:
+  build:
+    runs-on: windows-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Build Windows release
+        shell: pwsh
+        run: |
+          if ('${{ github.event.inputs.use_nuitka }}' -eq 'true') {
+            ./scripts/build_release_windows.ps1 -UseNuitka
+          } else {
+            ./scripts/build_release_windows.ps1
+          }
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: VideoDownloaderPro-win-x64
+          path: dist/VideoDownloaderPro-win-x64*.zip
+          if-no-files-found: error

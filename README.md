@@ -59,6 +59,13 @@ python3 main.py
 
 - `dist\VideoDownloaderPro-win-x64.zip`
 
+Дополнительно:
+
+```powershell
+./scripts/build_release_windows.ps1 -UseNuitka
+```
+
+Это режим с более сильной защитой/обфускацией (дольше сборка).
 ### Windows x64 через GitHub Actions
 
 В репозитории есть workflow:

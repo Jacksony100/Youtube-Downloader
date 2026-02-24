@@ -1,0 +1,14 @@
+__pycache__/
+*.pyc
+.venv/
+.DS_Store
+build/
+dist/
+*.spec
+pyarmor.bug.log
+build_assets/ffmpeg/
+build_assets/icon.icns
+build_assets/icon.iconset/
+
+.wine-winbuild/
+build_tools/
