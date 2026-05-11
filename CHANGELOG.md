@@ -2,6 +2,34 @@
 
 Все заметные изменения проекта фиксируются в этом файле.
 
+## [3.0.0] - 2026-05-11
+
+### UI/UX
+
+- Полный редизайн в стиле premium utility app: тёмный графитовый интерфейс, зелёное главное действие, фиолетовая активная навигация.
+- Добавлены разделы: Загрузки, История, Инструменты, Настройки, О приложении.
+- Добавлены PreviewCard, DownloadCard, EmptyState, Toast, статусные chips и отдельный QSS `ui/styles/dark.qss`.
+- Блок помощи при сетевых ограничениях и `onyshop.tech` сохранён, но стал менее навязчивым.
+
+### Core
+
+- Проект разделён на `app/`, `core/`, `ui/`, `tests/`; `main.py` стал compatibility wrapper.
+- Загрузка переведена с `yt_dlp.YoutubeDL` на внешний `yt-dlp` через `QProcess`.
+- Добавлен `ToolchainManager` для managed runtime в AppData: `yt-dlp`, `ffmpeg`, `ffprobe`, `manifest.json`.
+- Добавлены безопасные staging-обновления: старый runtime не удаляется до успешной проверки нового.
+- Добавлены настройки, SQLite-история загрузок, диагностика и отдельные логи `app.log`, `toolchain.log`, `downloads.log`.
+
+### Build/Release
+
+- Windows-сборка переведена на onefile: `dist\VideoDownloaderPro.exe`.
+- В exe добавляются fallback `yt-dlp.exe`, `ffmpeg.exe`, `ffprobe.exe`, которые при запуске копируются в AppData runtime.
+- Обновлён PowerShell build script с подготовкой fallback-инструментов и проверкой SHA256 для `yt-dlp`.
+- Сохранён опциональный `-UseNuitka`.
+
+### Tests
+
+- Добавлены минимальные тесты для путей AppData, парсера прогресса, форматных пресетов, SQLite history и settings.
+
 ## [2.5.0] - 2026-02-24
 
 ### UI/UX

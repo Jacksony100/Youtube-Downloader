@@ -4,62 +4,128 @@ set -euo pipefail
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 cd "$ROOT_DIR"
 
+PYTHON_BIN="${PYTHON_BIN:-python3}"
+USER_AGENT="VideoDownloaderPro/3.0 (+https://github.com/Jacksony100/Youtube-Downloader)"
+TOOLCHAIN_DIR="build_assets/toolchain"
+
+download_file() {
+  local url="$1"
+  local out="$2"
+  echo "[INFO] Downloading $url"
+  curl -L --fail --retry 3 --connect-timeout 20 -A "$USER_AGENT" "$url" -o "$out"
+  if [[ ! -s "$out" ]]; then
+    echo "[ERR] Download failed or file is empty: $out"
+    exit 1
+  fi
+}
+
+verify_ytdlp_checksum() {
+  local file_path="$1"
+  local expected
+  download_file "https://github.com/yt-dlp/yt-dlp/releases/latest/download/SHA2-256SUMS" "build_assets/SHA2-256SUMS"
+  expected="$(awk '$NF ~ /yt-dlp_macos$/ { print $1; exit }' build_assets/SHA2-256SUMS)"
+  if [[ -z "$expected" ]]; then
+    echo "[ERR] Unable to find yt-dlp_macos checksum"
+    exit 1
+  fi
+  local actual
+  actual="$(shasum -a 256 "$file_path" | awk '{print $1}')"
+  if [[ "$actual" != "$expected" ]]; then
+    echo "[ERR] yt-dlp_macos checksum mismatch"
+    exit 1
+  fi
+  echo "[OK] yt-dlp_macos checksum verified"
+}
+
+extract_single_binary() {
+  local zip_path="$1"
+  local binary_name="$2"
+  local out_path="$3"
+  "$PY" - "$zip_path" "$binary_name" "$out_path" <<'PY'
+import os
+import sys
+import zipfile
+from pathlib import Path
+
+zip_path, binary_name, out_path = sys.argv[1:4]
+out = Path(out_path)
+with zipfile.ZipFile(zip_path) as zf:
+    candidates = [
+        name for name in zf.namelist()
+        if Path(name).name == binary_name and not name.endswith("/")
+    ]
+    if not candidates:
+        raise SystemExit(f"{binary_name} not found in {zip_path}")
+    with zf.open(candidates[0]) as src:
+        out.write_bytes(src.read())
+out.chmod(0o755)
+print(f"[OK] {binary_name} extracted: {out}")
+PY
+}
+
+prepare_toolchain() {
+  mkdir -p "$TOOLCHAIN_DIR" build_assets
+
+  local ytdlp_path="$TOOLCHAIN_DIR/yt-dlp"
+  download_file "https://github.com/yt-dlp/yt-dlp/releases/latest/download/yt-dlp_macos" "$ytdlp_path"
+  verify_ytdlp_checksum "$ytdlp_path"
+  chmod 755 "$ytdlp_path"
+
+  local ffmpeg_zip="build_assets/ffmpeg-macos.zip"
+  local ffprobe_zip="build_assets/ffprobe-macos.zip"
+  download_file "https://evermeet.cx/ffmpeg/getrelease/ffmpeg/zip" "$ffmpeg_zip"
+  download_file "https://evermeet.cx/ffmpeg/getrelease/ffprobe/zip" "$ffprobe_zip"
+  extract_single_binary "$ffmpeg_zip" "ffmpeg" "$TOOLCHAIN_DIR/ffmpeg"
+  extract_single_binary "$ffprobe_zip" "ffprobe" "$TOOLCHAIN_DIR/ffprobe"
+}
+
 if [[ ! -d ".venv" ]]; then
-  echo "[ERR] .venv not found in $ROOT_DIR"
-  exit 1
+  "$PYTHON_BIN" -m venv .venv
 fi
 
 source .venv/bin/activate
+PY="$ROOT_DIR/.venv/bin/python"
 
 if ! command -v iconutil >/dev/null 2>&1; then
   echo "[ERR] iconutil not found (required on macOS)."
   exit 1
 fi
 
-mkdir -p build_assets/ffmpeg build_assets/icon.iconset dist
+"$PY" -m pip install --upgrade pip
+"$PY" -m pip install -r requirements.txt pyinstaller pillow
 
-# 1) Bundle native ffmpeg (arm64 on Apple Silicon)
-python - <<'PY'
-from pathlib import Path
-import imageio_ffmpeg
+mkdir -p build_assets/icon.iconset dist
+prepare_toolchain
 
-src = Path(imageio_ffmpeg.get_ffmpeg_exe())
-dst = Path('build_assets/ffmpeg/ffmpeg')
-dst.write_bytes(src.read_bytes())
-dst.chmod(0o755)
-print(f"[OK] ffmpeg bundled: {dst}")
-PY
-
-# 2) Build macOS icon (.icns) from icon.ico
-python - <<'PY'
+# Build macOS icon (.icns) from icon.ico.
+"$PY" - <<'PY'
 from pathlib import Path
 from PIL import Image
 
-src = Path('icon.ico')
-out = Path('build_assets/icon.iconset')
+src = Path("icon.ico")
+out = Path("build_assets/icon.iconset")
 out.mkdir(parents=True, exist_ok=True)
-img = Image.open(src).convert('RGBA')
+img = Image.open(src).convert("RGBA")
 
 mapping = {
-    'icon_16x16.png': 16,
-    'icon_16x16@2x.png': 32,
-    'icon_32x32.png': 32,
-    'icon_32x32@2x.png': 64,
-    'icon_128x128.png': 128,
-    'icon_128x128@2x.png': 256,
-    'icon_256x256.png': 256,
-    'icon_256x256@2x.png': 512,
-    'icon_512x512.png': 512,
-    'icon_512x512@2x.png': 1024,
+    "icon_16x16.png": 16,
+    "icon_16x16@2x.png": 32,
+    "icon_32x32.png": 32,
+    "icon_32x32@2x.png": 64,
+    "icon_128x128.png": 128,
+    "icon_128x128@2x.png": 256,
+    "icon_256x256.png": 256,
+    "icon_256x256@2x.png": 512,
+    "icon_512x512.png": 512,
+    "icon_512x512@2x.png": 1024,
 }
 for name, size in mapping.items():
-    img.resize((size, size), Image.Resampling.LANCZOS).save(out / name, format='PNG')
-print('[OK] iconset generated')
+    img.resize((size, size), Image.Resampling.LANCZOS).save(out / name, format="PNG")
+print("[OK] iconset generated")
 PY
 
 iconutil -c icns build_assets/icon.iconset -o build_assets/icon.icns
 
-# 3) Build app bundle (PyInstaller stores Python bytecode inside bootloader archive)
 echo "[INFO] Building app bundle with PyInstaller..."
 pyinstaller \
   --noconfirm \
@@ -69,8 +135,11 @@ pyinstaller \
   --name VideoDownloaderPro \
   --icon build_assets/icon.icns \
   --add-data "icon.ico:." \
-  --add-binary "build_assets/ffmpeg/ffmpeg:." \
-  main.py
+  --add-data "ui/styles/dark.qss:ui/styles" \
+  --add-binary "build_assets/toolchain/yt-dlp:toolchain" \
+  --add-binary "build_assets/toolchain/ffmpeg:toolchain" \
+  --add-binary "build_assets/toolchain/ffprobe:toolchain" \
+  app/main.py
 
 APP_PATH="dist/VideoDownloaderPro.app"
 if [[ ! -d "$APP_PATH" ]]; then
@@ -78,12 +147,10 @@ if [[ ! -d "$APP_PATH" ]]; then
   exit 1
 fi
 
-# 4) Normalize bundle metadata and re-sign to avoid "app is damaged" dialog
 xattr -cr "$APP_PATH"
 codesign --force --deep --sign - "$APP_PATH"
 codesign --verify --deep --strict --verbose=2 "$APP_PATH" >/dev/null
 
-# 5) Zip final .app bundle for transfer
 OUT_ZIP="dist/VideoDownloaderPro-macOS.zip"
 rm -f "$OUT_ZIP"
 ditto -c -k --sequesterRsrc --keepParent "$APP_PATH" "$OUT_ZIP"

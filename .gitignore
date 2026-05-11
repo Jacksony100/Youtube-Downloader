@@ -7,6 +7,10 @@ dist/
 *.spec
 pyarmor.bug.log
 build_assets/ffmpeg/
+build_assets/ffmpeg_extract/
+build_assets/toolchain/
+build_assets/*.zip
+build_assets/SHA2-256SUMS
 build_assets/icon.icns
 build_assets/icon.iconset/
 
