@@ -4,6 +4,8 @@ set -euo pipefail
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 cd "$ROOT_DIR"
 
+export COPYFILE_DISABLE=1
+
 PYTHON_BIN="${PYTHON_BIN:-python3}"
 USER_AGENT="VideoDownloaderPro/3.0 (+https://github.com/Jacksony100/Youtube-Downloader)"
 TOOLCHAIN_DIR="build_assets/toolchain"
@@ -147,13 +149,29 @@ if [[ ! -d "$APP_PATH" ]]; then
   exit 1
 fi
 
-xattr -cr "$APP_PATH"
-codesign --force --deep --sign - "$APP_PATH"
-codesign --verify --deep --strict --verbose=2 "$APP_PATH" >/dev/null
+STAGING_DIR="$(mktemp -d)"
+cleanup() {
+  rm -rf "$STAGING_DIR"
+}
+trap cleanup EXIT
+
+STAGED_APP="$STAGING_DIR/VideoDownloaderPro.app"
+ditto --norsrc "$APP_PATH" "$STAGED_APP"
+xattr -cr "$STAGED_APP"
+
+# Some cloud-synced folders reapply com.apple.FinderInfo to bundles under the
+# project directory. Codesign strict verification rejects that attribute, so the
+# release archive is created from a clean temporary copy outside the workspace.
+find "$STAGED_APP" -xattrname com.apple.FinderInfo -print0 | while IFS= read -r -d '' path; do
+  xattr -wx com.apple.FinderInfo 0000000000000000000000000000000000000000000000000000000000000000 "$path" 2>/dev/null || true
+done
+
+codesign --force --deep --sign - "$STAGED_APP"
+codesign --verify --deep --strict --verbose=2 "$STAGED_APP" >/dev/null
 
 OUT_ZIP="dist/VideoDownloaderPro-macOS.zip"
 rm -f "$OUT_ZIP"
-ditto -c -k --sequesterRsrc --keepParent "$APP_PATH" "$OUT_ZIP"
+ditto -c -k --norsrc --keepParent "$STAGED_APP" "$OUT_ZIP"
 
 echo "[OK] App bundle: $APP_PATH"
 echo "[OK] Zip package: $OUT_ZIP"
