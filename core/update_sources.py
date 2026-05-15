@@ -3,7 +3,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 
 
-USER_AGENT = "VideoDownloaderPro/3.0 (+https://github.com/Jacksony100/Youtube-Downloader)"
+USER_AGENT = "VideoDownloaderPro/3.1 (+https://github.com/Jacksony100/Youtube-Downloader)"
 
 
 @dataclass(frozen=True)

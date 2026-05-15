@@ -225,6 +225,7 @@ class MainWindow(QMainWindow):
 
     def _apply_settings_to_pages(self) -> None:
         values = self.settings.as_dict()
+        self.downloads_page.apply_settings(values)
         self.downloads_page.preview.apply_settings(
             values["output_dir"],
             values["default_format"],
@@ -344,7 +345,10 @@ class MainWindow(QMainWindow):
             self.show_toast(f"Не удалось создать папку: {exc}")
             return
 
-        preset = get_format_preset(self.settings.get("default_format", "best"))
+        format_key = self.downloads_page.selected_format_key()
+        self.settings.set("default_format", format_key)
+        self.settings.save()
+        preset = get_format_preset(format_key)
         self.task_counter += 1
         task_id = f"task-{self.task_counter}-{int(time.time() * 1000)}"
         task = DownloadTask(

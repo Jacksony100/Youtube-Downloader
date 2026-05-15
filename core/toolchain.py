@@ -63,7 +63,7 @@ class ToolchainManager:
         log.info("runtime ensured: ytdlp=%s ffmpeg=%s ffprobe=%s", status.ytdlp.path, status.ffmpeg.path, status.ffprobe.path)
         return status
 
-    def get_status(self) -> ToolchainStatus:
+    def get_status(self, refresh_versions: bool = False) -> ToolchainStatus:
         ytdlp_path = self.get_ytdlp_path()
         ffmpeg_path = self.get_ffmpeg_path()
         ffprobe_path = self.get_ffprobe_path()
@@ -72,7 +72,7 @@ class ToolchainManager:
             name="yt-dlp",
             path=str(ytdlp_path or ""),
             exists=bool(ytdlp_path and ytdlp_path.exists()),
-            version=self.get_ytdlp_version(),
+            version=self._tool_version("yt_dlp", ytdlp_path, ["--version"], refresh_versions),
             source=self._tool_source("yt_dlp", ytdlp_path),
             verified=bool(self._manifest.get("yt_dlp", {}).get("verified", True)),
         )
@@ -80,7 +80,7 @@ class ToolchainManager:
             name="ffmpeg",
             path=str(ffmpeg_path or ""),
             exists=bool(ffmpeg_path and ffmpeg_path.exists()),
-            version=self.get_ffmpeg_version(),
+            version=self._ffmpeg_version(ffmpeg_path, refresh_versions),
             source=self._tool_source("ffmpeg", ffmpeg_path),
             verified=bool(self._manifest.get("ffmpeg", {}).get("verified", True)),
         )
@@ -88,7 +88,7 @@ class ToolchainManager:
             name="ffprobe",
             path=str(ffprobe_path or ""),
             exists=bool(ffprobe_path and ffprobe_path.exists()),
-            version=self._run_version(ffprobe_path, ["-version"]) if ffprobe_path else "",
+            version=self._tool_version("ffprobe", ffprobe_path, ["-version"], refresh_versions),
             source=self._tool_source("ffprobe", ffprobe_path),
             verified=ffmpeg.verified,
         )
@@ -137,39 +137,35 @@ class ToolchainManager:
             return ""
         return str(ffmpeg_path.parent)
 
-    def get_ytdlp_version(self) -> str | None:
+    def get_ytdlp_version(self, refresh: bool = True) -> str | None:
         path = self.get_ytdlp_path()
         if not path:
             return None
-        return self._run_version(path, ["--version"])
+        return self._tool_version("yt_dlp", path, ["--version"], refresh) or None
 
-    def get_ffmpeg_version(self) -> str | None:
+    def get_ffmpeg_version(self, refresh: bool = True) -> str | None:
         path = self.get_ffmpeg_path()
         if not path:
             return None
-        output = self._run_version(path, ["-version"])
-        if not output:
-            return None
-        first_line = output.splitlines()[0] if output.splitlines() else output
-        parts = first_line.split()
-        if len(parts) >= 3 and parts[0].lower() == "ffmpeg":
-            return parts[2]
-        return first_line[:80]
+        return self._ffmpeg_version(path, refresh) or None
 
     def check_updates(self, force: bool = False) -> UpdateCheckResult:
+        status = self.get_status(refresh_versions=force)
+        if force:
+            self._update_manifest_from_status(status)
         if not force and not self._is_update_due():
             return UpdateCheckResult(
                 checked_at=utc_now_iso(),
-                ytdlp_current=self.get_ytdlp_version() or "",
-                ffmpeg_current=self.get_ffmpeg_version() or "",
+                ytdlp_current=status.ytdlp.version or "",
+                ffmpeg_current=status.ffmpeg.version or "",
                 skipped=True,
                 message="Проверка уже выполнялась менее 24 часов назад.",
             )
 
         result = UpdateCheckResult(
             checked_at=utc_now_iso(),
-            ytdlp_current=self.get_ytdlp_version() or "",
-            ffmpeg_current=self.get_ffmpeg_version() or "",
+            ytdlp_current=status.ytdlp.version or "",
+            ffmpeg_current=status.ffmpeg.version or "",
         )
         try:
             latest_ytdlp = self._fetch_latest_ytdlp_version()
@@ -185,6 +181,7 @@ class ToolchainManager:
             self.last_error = str(exc)
             result.error = str(exc)
             result.message = "Не удалось проверить обновления."
+            self._manifest["last_update_check"] = result.checked_at
             self._manifest["last_error"] = str(exc)
             self._write_manifest()
             log.exception("update check failed")
@@ -258,7 +255,7 @@ class ToolchainManager:
             self._atomic_install_file(ffmpeg_staged, target_dir / "ffmpeg.exe")
             self._atomic_install_file(ffprobe_staged, target_dir / "ffprobe.exe")
 
-            version = self.get_ffmpeg_version() or "installed"
+            version = self._parse_ffmpeg_version(ffmpeg_version) or "installed"
             self._manifest["ffmpeg"] = {
                 "version": version,
                 "path": str(target_dir / "ffmpeg.exe"),
@@ -363,8 +360,9 @@ class ToolchainManager:
                 copied = True
 
         if copied:
+            ffmpeg_raw_version = self._run_version(targets[self._exe_name("ffmpeg")], ["-version"])
             self._manifest["ffmpeg"] = {
-                "version": self.get_ffmpeg_version() or "",
+                "version": self._parse_ffmpeg_version(ffmpeg_raw_version),
                 "path": str(targets[self._exe_name("ffmpeg")]),
                 "updated_at": utc_now_iso(),
                 "source": "bundled",
@@ -390,8 +388,9 @@ class ToolchainManager:
                 except Exception:
                     path = Path(system)
                     source = "system"
+                raw_version = self._run_version(path, ["-version"]) or ""
                 self._manifest[binary] = {
-                    "version": self._run_version(path, ["-version"]) or "",
+                    "version": self._parse_ffmpeg_version(raw_version) if binary == "ffmpeg" else raw_version,
                     "path": str(path),
                     "updated_at": utc_now_iso(),
                     "source": source,
@@ -424,25 +423,82 @@ class ToolchainManager:
         )
 
     def _update_manifest_from_status(self, status: ToolchainStatus) -> None:
-        self._manifest["schema"] = 1
-        self._manifest["auto_update_enabled"] = status.auto_update_enabled
-        if status.ytdlp.exists:
-            self._manifest["yt_dlp"] = status.ytdlp.to_manifest()
-        if status.ffmpeg.exists:
-            self._manifest["ffmpeg"] = status.ffmpeg.to_manifest()
-        if status.ffprobe.exists:
-            self._manifest["ffprobe"] = status.ffprobe.to_manifest()
-        self._write_manifest()
+        changed = False
+        if self._manifest.get("schema") != 1:
+            self._manifest["schema"] = 1
+            changed = True
+        if self._manifest.get("auto_update_enabled", True) != status.auto_update_enabled:
+            self._manifest["auto_update_enabled"] = status.auto_update_enabled
+            changed = True
+        for key, info in (("yt_dlp", status.ytdlp), ("ffmpeg", status.ffmpeg), ("ffprobe", status.ffprobe)):
+            if info.exists and self._merge_manifest_tool(key, info):
+                changed = True
+        if changed or not self.paths.manifest_path.exists():
+            self._write_manifest()
+
+    def _merge_manifest_tool(self, key: str, info: ToolInfo) -> bool:
+        current = self._manifest_tool(key)
+        entry = {
+            "version": info.version or str(current.get("version", "")),
+            "path": info.path,
+            "updated_at": str(current.get("updated_at") or utc_now_iso()),
+            "source": info.source,
+            "verified": bool(info.verified),
+        }
+        if current == entry:
+            return False
+        self._manifest[key] = entry
+        return True
+
+    def _manifest_tool(self, key: str) -> Dict[str, Any]:
+        value = self._manifest.get(key)
+        return value if isinstance(value, dict) else {}
+
+    def _tool_version(self, manifest_key: str, path: Optional[Path], args: list[str], refresh: bool) -> str:
+        if not path or not path.exists():
+            return ""
+        if not refresh:
+            return self._cached_tool_version(manifest_key, path)
+        return self._run_version(path, args)
+
+    def _ffmpeg_version(self, path: Optional[Path], refresh: bool) -> str:
+        if not path or not path.exists():
+            return ""
+        if not refresh:
+            return self._cached_tool_version("ffmpeg", path)
+        return self._parse_ffmpeg_version(self._run_version(path, ["-version"]))
+
+    def _cached_tool_version(self, manifest_key: str, path: Path) -> str:
+        manifest = self._manifest_tool(manifest_key)
+        manifest_path = str(manifest.get("path", ""))
+        if manifest_path and self._same_path(Path(manifest_path), path):
+            return str(manifest.get("version", ""))
+        return ""
+
+    def _parse_ffmpeg_version(self, output: str) -> str:
+        if not output:
+            return ""
+        first_line = output.splitlines()[0] if output.splitlines() else output
+        parts = first_line.split()
+        if len(parts) >= 3 and parts[0].lower() == "ffmpeg":
+            return parts[2]
+        return first_line[:80]
 
     def _tool_source(self, manifest_key: str, path: Optional[Path]) -> str:
         if not path:
             return "missing"
         manifest_path = str(self._manifest.get(manifest_key, {}).get("path", ""))
-        if manifest_path and Path(manifest_path) == path:
+        if manifest_path and self._same_path(Path(manifest_path), path):
             return str(self._manifest.get(manifest_key, {}).get("source", "runtime"))
         if self.paths.runtime_dir in path.parents:
             return "runtime"
         return "system"
+
+    def _same_path(self, left: Path, right: Path) -> bool:
+        try:
+            return left.resolve() == right.resolve()
+        except Exception:
+            return left == right
 
     def _run_version(self, path: Optional[Path], args: list[str]) -> str:
         if not path:
@@ -455,11 +511,25 @@ class ToolchainManager:
                 stderr=subprocess.STDOUT,
                 text=True,
                 timeout=10,
+                **self._silent_subprocess_kwargs(),
             )
             return (completed.stdout or "").strip()
         except Exception as exc:
             log.warning("version check failed for %s: %s", path, exc)
             return ""
+
+    def _silent_subprocess_kwargs(self) -> Dict[str, Any]:
+        if not self._is_windows():
+            return {}
+
+        kwargs: Dict[str, Any] = {"creationflags": getattr(subprocess, "CREATE_NO_WINDOW", 0x08000000)}
+        startupinfo_class = getattr(subprocess, "STARTUPINFO", None)
+        if startupinfo_class:
+            startupinfo = startupinfo_class()
+            startupinfo.dwFlags |= getattr(subprocess, "STARTF_USESHOWWINDOW", 1)
+            startupinfo.wShowWindow = 0
+            kwargs["startupinfo"] = startupinfo
+        return kwargs
 
     def _is_update_due(self) -> bool:
         raw = self._manifest.get("last_update_check")

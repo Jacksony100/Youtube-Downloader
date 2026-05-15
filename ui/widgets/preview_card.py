@@ -5,7 +5,6 @@ from pathlib import Path
 from PySide6.QtCore import Qt, Signal
 from PySide6.QtGui import QPixmap
 from PySide6.QtWidgets import (
-    QButtonGroup,
     QCheckBox,
     QFrame,
     QGridLayout,
@@ -18,13 +17,12 @@ from PySide6.QtWidgets import (
 )
 
 from core.downloader import format_duration
-from core.models import FORMAT_PRESETS, VideoMetadata, get_format_preset
+from core.models import VideoMetadata
 from ui.widgets.thumbnail import ThumbnailThread
 
 
 class PreviewCard(QFrame):
     browse_requested = Signal()
-    format_changed = Signal(str)
     parallel_changed = Signal(int)
     auto_open_changed = Signal(bool)
 
@@ -64,20 +62,6 @@ class PreviewCard(QFrame):
         top.addWidget(self.thumb)
         top.addLayout(text, 1)
 
-        chips = QHBoxLayout()
-        chips.setSpacing(8)
-        self.format_group = QButtonGroup(self)
-        self.format_group.setExclusive(True)
-        for index, preset in enumerate(FORMAT_PRESETS):
-            button = QPushButton(preset.label)
-            button.setObjectName("FormatChip")
-            button.setCheckable(True)
-            button.setMinimumHeight(34)
-            self.format_group.addButton(button, index)
-            chips.addWidget(button)
-        chips.addStretch()
-        self.format_group.idClicked.connect(self._on_format_clicked)
-
         settings_grid = QGridLayout()
         settings_grid.setHorizontalSpacing(12)
         settings_grid.setVerticalSpacing(8)
@@ -116,7 +100,6 @@ class PreviewCard(QFrame):
         settings_grid.setColumnStretch(1, 1)
 
         root.addLayout(top)
-        root.addLayout(chips)
         root.addLayout(settings_grid)
 
     def apply_settings(self, output_dir: str, format_key: str, parallel: int, auto_open: bool) -> None:
@@ -130,16 +113,10 @@ class PreviewCard(QFrame):
         self.set_format(format_key)
 
     def set_format(self, format_key: str) -> None:
-        preset = get_format_preset(format_key)
-        for button in self.format_group.buttons():
-            button.setChecked(self.format_group.id(button) == FORMAT_PRESETS.index(preset))
+        return
 
     def selected_format_key(self) -> str:
-        checked = self.format_group.checkedButton()
-        if not checked:
-            return "best"
-        index = self.format_group.id(checked)
-        return FORMAT_PRESETS[index].key if 0 <= index < len(FORMAT_PRESETS) else "best"
+        return "best"
 
     def output_dir(self) -> str:
         return self.folder_edit.text().strip()
@@ -163,10 +140,6 @@ class PreviewCard(QFrame):
         self.summary_label.setText("")
         self.thumb.clear()
         self.thumb.setText("Превью")
-
-    def _on_format_clicked(self, index: int) -> None:
-        if 0 <= index < len(FORMAT_PRESETS):
-            self.format_changed.emit(FORMAT_PRESETS[index].key)
 
     def _load_thumbnail(self, url: str) -> None:
         thread = ThumbnailThread(url)

@@ -7,7 +7,7 @@ $ErrorActionPreference = "Stop"
 $root = Resolve-Path (Join-Path $PSScriptRoot "..")
 Set-Location $root
 
-$userAgent = "VideoDownloaderPro/3.0 (+https://github.com/Jacksony100/Youtube-Downloader)"
+$userAgent = "VideoDownloaderPro/3.1 (+https://github.com/Jacksony100/Youtube-Downloader)"
 $toolchainDir = "build_assets\toolchain"
 $ffmpegExtractDir = "build_assets\ffmpeg_extract"
 $ffmpegZip = "build_assets\ffmpeg-release-essentials.zip"

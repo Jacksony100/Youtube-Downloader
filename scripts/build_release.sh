@@ -7,7 +7,7 @@ cd "$ROOT_DIR"
 export COPYFILE_DISABLE=1
 
 PYTHON_BIN="${PYTHON_BIN:-python3}"
-USER_AGENT="VideoDownloaderPro/3.0 (+https://github.com/Jacksony100/Youtube-Downloader)"
+USER_AGENT="VideoDownloaderPro/3.1 (+https://github.com/Jacksony100/Youtube-Downloader)"
 TOOLCHAIN_DIR="build_assets/toolchain"
 
 download_file() {

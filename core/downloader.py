@@ -3,6 +3,7 @@ from __future__ import annotations
 import json
 import os
 import re
+import sys
 from pathlib import Path
 from typing import List, Optional
 
@@ -27,6 +28,25 @@ from core.validators import sanitize_error_message
 
 
 log = get_logger("downloads")
+
+
+def configure_silent_process(process) -> None:
+    if not sys.platform.startswith("win"):
+        return
+    modifier = getattr(process, "setCreateProcessArgumentsModifier", None)
+    if not callable(modifier):
+        return
+
+    def apply_no_window(args) -> None:
+        try:
+            args.flags |= 0x08000000
+        except Exception:
+            pass
+
+    try:
+        modifier(apply_no_window)
+    except Exception:
+        pass
 
 
 def parse_progress_line(line: str) -> Optional[DownloadProgress]:
@@ -122,6 +142,7 @@ class MetadataProcessThread(QThread):
         process.setProgram(self.ytdlp_path)
         process.setArguments(build_metadata_args(self.url))
         process.setProcessChannelMode(QProcess.SeparateChannels)
+        configure_silent_process(process)
         log.info("metadata command: %s %s", self.ytdlp_path, " ".join(build_metadata_args("<url>")))
         process.start()
         if not process.waitForStarted(8000):
@@ -199,6 +220,7 @@ class DownloadProcessThread(QThread):
         process.setProgram(self.ytdlp_path)
         process.setArguments(args)
         process.setProcessChannelMode(QProcess.SeparateChannels)
+        configure_silent_process(process)
         process.start()
 
         if not process.waitForStarted(8000):

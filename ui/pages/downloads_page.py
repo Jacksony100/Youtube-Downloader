@@ -2,7 +2,9 @@ from __future__ import annotations
 
 from PySide6.QtCore import Qt, Signal
 from PySide6.QtWidgets import (
+    QComboBox,
     QFrame,
+    QGridLayout,
     QHBoxLayout,
     QLabel,
     QLineEdit,
@@ -12,7 +14,7 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
-from core.models import VideoMetadata
+from core.models import FORMAT_PRESETS, VideoMetadata
 from ui.widgets import EmptyState, PreviewCard, StatChip
 
 
@@ -57,14 +59,23 @@ class DownloadsPage(QWidget):
         input_layout.setContentsMargins(18, 18, 18, 18)
         input_layout.setSpacing(12)
 
+        input_grid = QGridLayout()
+        input_grid.setHorizontalSpacing(10)
+        input_grid.setVerticalSpacing(8)
+
         url_label = QLabel("Ссылка на видео")
         url_label.setObjectName("InputLabel")
-        row = QHBoxLayout()
-        row.setSpacing(8)
         self.url_edit = QLineEdit()
         self.url_edit.setObjectName("Input")
         self.url_edit.setPlaceholderText("https://www.youtube.com/watch?v=...")
         self.url_edit.setMinimumHeight(44)
+        format_label = QLabel("Формат")
+        format_label.setObjectName("InputLabel")
+        self.format_box = QComboBox()
+        self.format_box.setObjectName("Input")
+        self.format_box.setMinimumHeight(44)
+        for preset in FORMAT_PRESETS:
+            self.format_box.addItem(preset.label, preset.key)
         self.paste_btn = QPushButton("Вставить")
         self.paste_btn.setObjectName("SecondaryButton")
         self.check_btn = QPushButton("Проверить")
@@ -73,12 +84,16 @@ class DownloadsPage(QWidget):
         self.add_btn.setObjectName("PrimaryButton")
         for button in (self.paste_btn, self.check_btn, self.add_btn):
             button.setMinimumHeight(44)
-        row.addWidget(self.url_edit, 1)
-        row.addWidget(self.paste_btn)
-        row.addWidget(self.check_btn)
-        row.addWidget(self.add_btn)
-        input_layout.addWidget(url_label)
-        input_layout.addLayout(row)
+        input_grid.addWidget(url_label, 0, 0)
+        input_grid.addWidget(format_label, 0, 1)
+        input_grid.addWidget(self.url_edit, 1, 0)
+        input_grid.addWidget(self.format_box, 1, 1)
+        input_grid.addWidget(self.paste_btn, 1, 2)
+        input_grid.addWidget(self.check_btn, 1, 3)
+        input_grid.addWidget(self.add_btn, 1, 4)
+        input_grid.setColumnStretch(0, 1)
+        input_grid.setColumnMinimumWidth(1, 150)
+        input_layout.addLayout(input_grid)
 
         self.preview = PreviewCard()
         self.preview.setVisible(False)
@@ -147,14 +162,26 @@ class DownloadsPage(QWidget):
         self.cancel_all_btn.clicked.connect(self.cancel_all_requested.emit)
         self.onyshop_btn.clicked.connect(self.onyshop_requested.emit)
         self.onyshop_help_btn.clicked.connect(self.onyshop_help_requested.emit)
+        self.format_box.currentIndexChanged.connect(self._emit_format_changed)
         self.preview.browse_requested.connect(self.browse_requested.emit)
-        self.preview.format_changed.connect(self.format_changed.emit)
         self.preview.parallel_changed.connect(self.parallel_changed.emit)
         self.preview.auto_open_changed.connect(self.auto_open_changed.emit)
+
+    def apply_settings(self, values: dict) -> None:
+        self.set_format(values.get("default_format", "best"))
 
     def set_checking(self, checking: bool) -> None:
         self.check_btn.setEnabled(not checking)
         self.check_btn.setText("Проверяем..." if checking else "Проверить")
+
+    def set_format(self, format_key: str) -> None:
+        index = self.format_box.findData(format_key)
+        self.format_box.blockSignals(True)
+        self.format_box.setCurrentIndex(max(0, index))
+        self.format_box.blockSignals(False)
+
+    def selected_format_key(self) -> str:
+        return self.format_box.currentData() or "best"
 
     def show_preview(self, metadata: VideoMetadata) -> None:
         self.preview.setVisible(True)
@@ -171,3 +198,6 @@ class DownloadsPage(QWidget):
     def add_download_card(self, card: QWidget) -> None:
         self.cards_layout.insertWidget(0, card)
         self.empty_state.setVisible(False)
+
+    def _emit_format_changed(self, *_args) -> None:
+        self.format_changed.emit(self.selected_format_key())

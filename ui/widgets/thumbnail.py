@@ -16,7 +16,7 @@ class ThumbnailThread(QThread):
         if not self.url:
             return
         try:
-            request = urllib.request.Request(self.url, headers={"User-Agent": "VideoDownloaderPro/3.0"})
+            request = urllib.request.Request(self.url, headers={"User-Agent": "VideoDownloaderPro/3.1"})
             with urllib.request.urlopen(request, timeout=8) as response:
                 self.loaded.emit(response.read(2_000_000))
         except Exception:

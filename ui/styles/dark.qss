@@ -339,6 +339,15 @@ QTextEdit#LogPanel {
     font-size: 12px;
 }
 
+QTextBrowser#ChangelogPanel {
+    background-color: #0c1016;
+    color: #c4ccd8;
+    border: 1px solid #26303d;
+    border-radius: 8px;
+    padding: 12px;
+    font-size: 12px;
+}
+
 QFrame#Toast {
     background-color: #171d27;
     border: 1px solid #38d681;
