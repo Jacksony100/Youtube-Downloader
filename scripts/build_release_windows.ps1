@@ -79,20 +79,21 @@ function Prepare-Toolchain {
 }
 
 if (-not (Get-Command cmake -ErrorAction SilentlyContinue)) { throw "CMake not found" }
+if (-not (Get-Command ninja -ErrorAction SilentlyContinue)) { throw "Ninja not found" }
 if (-not $QtDir) { throw "Qt6_DIR is not set" }
 $qtBin = Resolve-Path (Join-Path $QtDir "..\..\..\bin")
 $windeployqt = Join-Path $qtBin "windeployqt.exe"
 if (-not (Test-Path -LiteralPath $windeployqt)) { throw "windeployqt not found: $windeployqt" }
 
 Prepare-Toolchain
-cmake -S . -B build-cpp -G "Visual Studio 17 2022" -A x64 -DCMAKE_PREFIX_PATH="$QtDir" -DBUILD_TESTING=ON
+cmake -S . -B build-cpp -G Ninja -DCMAKE_BUILD_TYPE=Release -DCMAKE_PREFIX_PATH="$QtDir" -DBUILD_TESTING=ON
 cmake --build build-cpp --config Release
-ctest --test-dir build-cpp -C Release --output-on-failure
+ctest --test-dir build-cpp --output-on-failure
 
 $package = Join-Path $root "dist\VideoDownloaderPro-win-x64"
 if (Test-Path -LiteralPath $package) { Remove-Item -LiteralPath $package -Recurse -Force }
 New-Item -ItemType Directory -Force (Join-Path $package "toolchain") | Out-Null
-Copy-Item -LiteralPath "build-cpp\Release\VideoDownloaderPro.exe" -Destination $package
+Copy-Item -LiteralPath "build-cpp\VideoDownloaderPro.exe" -Destination $package
 Copy-Item -Path "build_assets\toolchain\*" -Destination (Join-Path $package "toolchain") -Force
 Copy-Item -LiteralPath "README.md", "CHANGELOG.md" -Destination $package
 & $windeployqt --release --no-translations --compiler-runtime (Join-Path $package "VideoDownloaderPro.exe")

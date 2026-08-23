@@ -15,7 +15,7 @@ jobs:
         uses: jurplel/install-qt-action@v4
         with:
           version: "6.11.2"
-          arch: win64_msvc2022_64
+          arch: win64_mingw
           cache: true
 
       - name: Build and test native release
