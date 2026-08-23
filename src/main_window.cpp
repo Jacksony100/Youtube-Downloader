@@ -127,7 +127,7 @@ void MainWindow::setupUi() {
     brandText->setSpacing(1);
     auto* brandTitle = new QLabel("Video Downloader");
     brandTitle->setObjectName("BrandTitle");
-    auto* brandEdition = new QLabel("PRO  •  NATIVE C++");
+    auto* brandEdition = new QLabel("PRO  •  VERSION 4.0");
     brandEdition->setObjectName("BrandEdition");
     brandText->addWidget(brandTitle);
     brandText->addWidget(brandEdition);
