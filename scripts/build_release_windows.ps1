@@ -98,6 +98,21 @@ Copy-Item -Path "build_assets\toolchain\*" -Destination (Join-Path $package "too
 Copy-Item -LiteralPath "README.md", "CHANGELOG.md" -Destination $package
 & $windeployqt --release --no-translations --compiler-runtime (Join-Path $package "VideoDownloaderPro.exe")
 
+$smokeData = Join-Path $root "build-cpp\smoke-localappdata"
+New-Item -ItemType Directory -Force $smokeData | Out-Null
+$previousLocalAppData = $env:LOCALAPPDATA
+$env:LOCALAPPDATA = $smokeData
+$env:VDP_SMOKE_TEST = "1"
+try {
+    & (Join-Path $package "VideoDownloaderPro.exe")
+} finally {
+    $env:LOCALAPPDATA = $previousLocalAppData
+    Remove-Item Env:\VDP_SMOKE_TEST -ErrorAction SilentlyContinue
+}
+$managedDeno = Join-Path $smokeData "VideoDownloaderPro\runtime\deno\deno.exe"
+if (-not (Test-Path -LiteralPath $managedDeno)) { throw "Packaged app smoke test did not provision Deno" }
+Write-Host "[OK] Packaged executable smoke test passed"
+
 $zip = Join-Path $root "dist\VideoDownloaderPro-win-x64.zip"
 if (Test-Path -LiteralPath $zip) { Remove-Item -LiteralPath $zip -Force }
 Compress-Archive -Path (Join-Path $package "*") -DestinationPath $zip -Force

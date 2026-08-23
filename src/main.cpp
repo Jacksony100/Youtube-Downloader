@@ -7,6 +7,10 @@ static int runApplication(int argc, char* argv[]) {
     QCoreApplication::setApplicationName(vdp::kAppName);
     QCoreApplication::setOrganizationName("Jacksony");
     QCoreApplication::setApplicationVersion(VDP_VERSION);
+    if (qEnvironmentVariableIsSet("VDP_SMOKE_TEST")) {
+        vdp::ToolchainManager toolchain;
+        return toolchain.ensureRuntime().ready() ? 0 : 2;
+    }
     vdp::MainWindow window;
     window.show();
     return app.exec();

@@ -43,6 +43,14 @@ cp -R build-cpp/VideoDownloaderPro.app "$APP"
 mkdir -p "$APP/Contents/Resources/toolchain"
 cp "$TOOLCHAIN/yt-dlp" "$TOOLCHAIN/deno" "$TOOLCHAIN/ffmpeg" "$TOOLCHAIN/ffprobe" "$APP/Contents/Resources/toolchain/"
 codesign --force --deep --sign - "$APP"
+SMOKE_HOME="$ROOT_DIR/build-cpp/smoke-home"
+mkdir -p "$SMOKE_HOME"
+HOME="$SMOKE_HOME" VDP_SMOKE_TEST=1 "$APP/Contents/MacOS/VideoDownloaderPro"
+[[ -x "$SMOKE_HOME/Library/Application Support/VideoDownloaderPro/runtime/deno/deno" ]] || {
+  echo "[ERR] Packaged app smoke test did not provision Deno"
+  exit 1
+}
+echo "[OK] Packaged executable smoke test passed"
 rm -f dist/VideoDownloaderPro-macOS.zip
 ditto -c -k --keepParent "$APP" dist/VideoDownloaderPro-macOS.zip
 echo "[OK] Native C++ package: dist/VideoDownloaderPro-macOS.zip"
