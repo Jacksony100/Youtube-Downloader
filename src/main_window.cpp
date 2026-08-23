@@ -58,6 +58,24 @@ bool validUrl(const QString& value) {
     const QUrl url = QUrl::fromUserInput(value.trimmed());
     return url.isValid() && (url.scheme() == "http" || url.scheme() == "https") && !url.host().isEmpty();
 }
+
+QString compatibleThumbnailUrl(const QJsonObject& metadata) {
+    const auto isSupported = [](const QString& value) {
+        const QString path = QUrl(value).path().toLower();
+        return path.endsWith(".jpg") || path.endsWith(".jpeg") || path.endsWith(".png")
+            || path.endsWith(".gif") || path.endsWith(".bmp");
+    };
+
+    const QString primary = metadata.value("thumbnail").toString();
+    if (isSupported(primary)) return primary;
+
+    const QJsonArray thumbnails = metadata.value("thumbnails").toArray();
+    for (qsizetype index = thumbnails.size(); index > 0; --index) {
+        const QString candidate = thumbnails.at(index - 1).toObject().value("url").toString();
+        if (isSupported(candidate)) return candidate;
+    }
+    return primary;
+}
 }
 
 MainWindow::MainWindow(QWidget* parent)
@@ -578,7 +596,7 @@ void MainWindow::checkUrl() {
             previewDetails_->setText(QString("%1 • %2:%3")
                 .arg(json.value("uploader").toString("Автор неизвестен"))
                 .arg(seconds / 60).arg(seconds % 60, 2, 10, QLatin1Char('0')));
-            loadThumbnail(json.value("thumbnail").toString(), previewArtwork_);
+            loadThumbnail(compatibleThumbnailUrl(json), previewArtwork_);
         } else {
             previewTitle_->setText("Не удалось проверить ссылку");
             previewDetails_->setText(sanitizeError(errors));
@@ -660,7 +678,7 @@ void MainWindow::applyTaskMetadata(Task* task, const QJsonObject& metadata) {
     const int seconds = metadata.value("duration").toInt();
     if (seconds > 0) details << QString("%1:%2").arg(seconds / 60).arg(seconds % 60, 2, 10, QLatin1Char('0'));
     task->metadataLabel->setText(details.join(" • "));
-    loadThumbnail(metadata.value("thumbnail").toString(), task->thumbnail);
+    loadThumbnail(compatibleThumbnailUrl(metadata), task->thumbnail);
 }
 
 void MainWindow::loadThumbnail(const QString& url, QLabel* target) {
