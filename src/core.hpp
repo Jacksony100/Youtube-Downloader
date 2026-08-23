@@ -20,6 +20,7 @@ struct FormatPreset {
 
 const QVector<FormatPreset>& formatPresets();
 FormatPreset formatPreset(const QString& key);
+bool isVersionNewer(const QString& candidate, const QString& installed);
 QStringList buildMetadataArguments(const QString& url, const QString& denoPath);
 QStringList buildDownloadArguments(const QString& url, const FormatPreset& preset,
                                    const QString& outputDir, const QString& ffmpegDir,

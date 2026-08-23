@@ -10,6 +10,15 @@ class CoreTests final : public QObject {
     Q_OBJECT
 
 private slots:
+    void comparesToolVersions() {
+        QVERIFY(isVersionNewer("2026.08.19", "2026.07.04"));
+        QVERIFY(isVersionNewer("2.9.5", "2.3.0"));
+        QVERIFY(!isVersionNewer("2026.07.04", "2026.08.19"));
+        QVERIFY(!isVersionNewer("2026.08.19", "2026.08.19"));
+        QVERIFY(!isVersionNewer("unknown", "2026.08.19"));
+        QVERIFY(isVersionNewer("2026.08.19", "unknown"));
+    }
+
     void formatFallback() {
         QCOMPARE(formatPreset("missing").key, QString("best"));
         QVERIFY(formatPreset("mp3").extractAudio);

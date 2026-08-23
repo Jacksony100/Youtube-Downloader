@@ -18,6 +18,7 @@
 #include <QSysInfo>
 #include <QTemporaryDir>
 #include <QUrl>
+#include <QVersionNumber>
 
 namespace vdp {
 
@@ -37,6 +38,13 @@ FormatPreset formatPreset(const QString& key) {
         if (preset.key == key) return preset;
     }
     return formatPresets().first();
+}
+
+bool isVersionNewer(const QString& candidate, const QString& installed) {
+    const QVersionNumber candidateVersion = QVersionNumber::fromString(candidate.trimmed());
+    const QVersionNumber installedVersion = QVersionNumber::fromString(installed.trimmed());
+    return !candidateVersion.isNull() &&
+           (installedVersion.isNull() || QVersionNumber::compare(candidateVersion, installedVersion) > 0);
 }
 
 static QStringList jsRuntimeArguments(const QString& denoPath) {
@@ -78,6 +86,8 @@ QString sanitizeError(const QString& raw) {
         return "Видео ограничено по возрасту или региону.";
     if (lower.contains("429") || lower.contains("too many requests"))
         return "Платформа временно ограничила запросы. Попробуйте позже.";
+    if (lower.contains("403") || lower.contains("forbidden"))
+        return "YouTube отклонил медиапоток (403). Обновите yt-dlp в разделе «Инструменты» и проверьте VPN или прокси.";
     if (lower.contains("timeout") || lower.contains("connection") || lower.contains("network"))
         return "Сетевая ошибка. Проверьте подключение и повторите попытку.";
     return text.isEmpty() ? QStringLiteral("Неизвестная ошибка.") : text.right(1800);
@@ -169,6 +179,19 @@ ToolchainStatus ToolchainManager::ensureRuntime() {
     copyBundledOrSystem("deno", denoPath());
     copyBundledOrSystem("ffmpeg", ffmpegPath());
     copyBundledOrSystem("ffprobe", ffprobePath());
+
+    auto upgradeFromBundle = [this](const QString& stem, const QString& target) {
+        const QString source = bundledTool(executableName(stem));
+        if (source.isEmpty() || !QFileInfo::exists(target)) return;
+        const QString bundledVersion = toolVersion(source, {"--version"});
+        const QString installedVersion = toolVersion(target, {"--version"});
+        if (!isVersionNewer(bundledVersion, installedVersion)) return;
+        QString ignored;
+        installFile(source, target, &ignored);
+    };
+    upgradeFromBundle("yt-dlp", ytdlpPath());
+    upgradeFromBundle("deno", denoPath());
+
     auto result = status(true);
     writeManifest(result);
     return result;

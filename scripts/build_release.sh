@@ -11,7 +11,7 @@ if [[ -z "$QT_ROOT" && -n "$QT_DIR" ]]; then QT_ROOT="$(cd "$QT_DIR/../../.." &&
 TOOLCHAIN="$ROOT_DIR/build_assets/toolchain"
 mkdir -p "$TOOLCHAIN" "$ROOT_DIR/build_assets" "$ROOT_DIR/dist"
 
-download() { curl -L --fail --retry 3 -A "VideoDownloaderPro/4.0" "$1" -o "$2"; }
+download() { curl -L --fail --retry 3 -A "VideoDownloaderPro/4.0.1" "$1" -o "$2"; }
 
 download "https://github.com/yt-dlp/yt-dlp/releases/latest/download/yt-dlp_macos" "$TOOLCHAIN/yt-dlp"
 chmod 755 "$TOOLCHAIN/yt-dlp"

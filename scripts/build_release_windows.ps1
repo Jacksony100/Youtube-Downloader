@@ -8,7 +8,7 @@ $ErrorActionPreference = "Stop"
 $PSNativeCommandUseErrorActionPreference = $true
 $root = Resolve-Path (Join-Path $PSScriptRoot "..")
 Set-Location $root
-$userAgent = "VideoDownloaderPro/4.0 (+https://github.com/Jacksony100/Youtube-Downloader)"
+$userAgent = "VideoDownloaderPro/4.0.1 (+https://github.com/Jacksony100/Youtube-Downloader)"
 $toolchain = Join-Path $root "build_assets\toolchain"
 
 function Download-Checked([string]$Url, [string]$Output) {
@@ -142,12 +142,12 @@ if (-not $InnoSetupCompiler -or -not (Test-Path -LiteralPath $InnoSetupCompiler)
 
 $installerScript = Join-Path $root "installer\VideoDownloaderPro.iss"
 & $InnoSetupCompiler `
-    "/DAppVersion=4.0.0" `
+    "/DAppVersion=4.0.1" `
     "/DPackageDir=$package" `
     "/DOutputDir=$(Join-Path $root 'dist')" `
     $installerScript
 
-$installer = Join-Path $root "dist\VideoDownloaderPro-Setup-4.0.0.exe"
+$installer = Join-Path $root "dist\VideoDownloaderPro-Setup-4.0.1.exe"
 if (-not (Test-Path -LiteralPath $installer)) { throw "Installer was not created: $installer" }
 
 $installTarget = Join-Path $root "build-cpp\installer-smoke\app"
