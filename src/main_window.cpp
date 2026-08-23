@@ -127,7 +127,7 @@ void MainWindow::setupUi() {
     brandText->setSpacing(1);
     auto* brandTitle = new QLabel("Video Downloader");
     brandTitle->setObjectName("BrandTitle");
-    auto* brandEdition = new QLabel("PRO  •  VERSION 4.0");
+    auto* brandEdition = new QLabel("PRO  •  ВЕРСИЯ 4.0");
     brandEdition->setObjectName("BrandEdition");
     brandText->addWidget(brandTitle);
     brandText->addWidget(brandEdition);
@@ -475,11 +475,11 @@ QWidget* MainWindow::createAboutPage() {
     mark->setFixedSize(56, 56);
     aboutLayout->addWidget(mark);
     aboutLayout->addWidget(heading("Video Downloader Pro"));
-    aboutLayout->addWidget(heading(QString("Версия %1  •  C++20 / Qt 6").arg(VDP_VERSION), "SectionTitle"));
-    auto* description = createMutedLabel("Быстрое нативное приложение для загрузки видео и аудио через yt-dlp.\nPython не требуется — весь интерфейс и управление процессами написаны на C++.");
+    aboutLayout->addWidget(heading(QString("Версия %1").arg(VDP_VERSION), "SectionTitle"));
+    auto* description = createMutedLabel("Современное приложение для быстрой загрузки видео и музыки.\nВставьте ссылку, выберите качество — всё остальное приложение сделает само.");
     description->setObjectName("AboutText");
     aboutLayout->addWidget(description);
-    auto* repo = createButton("Открыть GitHub", "PrimaryButton");
+    auto* repo = createButton("Проект на GitHub", "PrimaryButton");
     connect(repo, &QPushButton::clicked, this, [] { QDesktopServices::openUrl(QUrl(VDP_REPOSITORY)); });
     aboutLayout->addSpacing(10);
     aboutLayout->addWidget(repo, 0, Qt::AlignLeft);
