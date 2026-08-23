@@ -1,201 +1,93 @@
-# Video Downloader Pro
+# Video Downloader Pro 4
 
-Desktop-приложение на `Python` + `PySide6` для загрузки видео и аудио через внешний `yt-dlp`.
+Нативное desktop-приложение на **C++20 + Qt 6 Widgets** для загрузки видео и аудио через внешний `yt-dlp`.
 
-Приложение распространяется как один Windows exe для пользователя, но `yt-dlp`, `ffmpeg` и `ffprobe` живут отдельно в runtime-папке пользователя и могут обновляться без пересборки приложения.
-
-## Скриншоты
-
-### Загрузки
-
-![Экран загрузок Video Downloader Pro](assets/screenshots/downloads.png)
-
-### История
-
-![История загрузок Video Downloader Pro](assets/screenshots/history.png)
-
-### Инструменты
-
-![Runtime-инструменты Video Downloader Pro](assets/screenshots/tools.png)
+Python не требуется ни пользователю, ни приложению во время работы. Сборка выполняется CMake/Ninja, загрузки запускаются через `QProcess`.
 
 ## Возможности
 
-- Новый интерфейс на русском: Загрузки, История, Инструменты, Настройки, О приложении.
-- Очередь загрузок с параллельностью от 1 до 5 задач.
-- Форматы: Лучшее, 1080p, 720p, 480p, MP3.
-- Проверка ссылки до скачивания через внешний `yt-dlp`.
-- Загрузка через `QProcess`, без `import yt_dlp` в основном движке.
-- Управляемый runtime toolchain в `%LOCALAPPDATA%\VideoDownloaderPro\runtime`.
-- Автообновление `yt-dlp`; установка/обновление Windows `ffmpeg` из fallback или zip-источника.
-- SQLite-история загрузок с поиском, повтором, открытием файла и папки.
-- Логи и диагностика: app/toolchain/downloads.
-- Ненавязчивый блок помощи при сетевых ограничениях с ссылкой на [onyshop.tech](https://onyshop.tech).
-- Горячие клавиши сохранены.
+- Очередь с 1–5 параллельными загрузками.
+- Форматы: лучшее качество, 1080p, 720p, 480p и MP3.
+- Проверка ссылки и чтение метаданных перед загрузкой.
+- Нативные настройки и JSON-история загрузок.
+- Управляемый runtime в `%LOCALAPPDATA%\VideoDownloaderPro\runtime`.
+- Отдельное обновление `yt-dlp`, Deno и ffmpeg.
+- Явная передача Deno через `--js-runtimes` для полной поддержки YouTube.
+- Windows x64 и macOS release workflows.
 
-## Runtime-инструменты
-
-Windows runtime:
+## Runtime
 
 ```text
-%LOCALAPPDATA%\VideoDownloaderPro\
-  runtime\
-    yt-dlp\
-      yt-dlp.exe
-    ffmpeg\
-      bin\
-        ffmpeg.exe
-        ffprobe.exe
-    manifest.json
-  logs\
-  data\
-    history.sqlite
-    settings.json
-  cache\
+VideoDownloaderPro/
+  runtime/
+    yt-dlp/yt-dlp.exe
+    deno/deno.exe
+    ffmpeg/bin/ffmpeg.exe
+    ffmpeg/bin/ffprobe.exe
+  data/
+    settings.ini
+    history.json
+  runtime/manifest.json
 ```
 
-При первом запуске приложение:
+Релизный архив уже содержит fallback-копии всех инструментов. При первом запуске приложение копирует их в пользовательский runtime. Обновления устанавливаются отдельно от основного приложения.
 
-1. Создаёт папки в AppData.
-2. Копирует fallback-инструменты из PyInstaller bundle (`sys._MEIPASS\toolchain`) в runtime.
-3. Если fallback отсутствует, пробует найти системные `yt-dlp`/`ffmpeg`.
-4. Показывает статус на странице «Инструменты».
+## Сборка из исходников
 
-Обновление не пытается менять файлы внутри exe. Новые версии скачиваются в `runtime\.staging`, проверяются и только потом атомарно заменяют рабочие файлы. При ошибке старая рабочая версия остаётся на месте.
+Требования:
 
-`yt-dlp` скачивается из GitHub Releases с попыткой проверки `SHA2-256SUMS`. Windows `ffmpeg` берётся из `gyan.dev` essentials zip; если публичной checksum-ссылки нет, runtime помечается как `unverified` в UI и manifest.
-
-## Автообновление
-
-Автообновление включено по умолчанию и проверяет инструменты при запуске не чаще одного раза в 24 часа.
-
-Отключить можно в приложении:
-
-- `Инструменты` → `Автообновлять инструменты`
-- или `Настройки` → `Автообновление yt-dlp/ffmpeg`
-
-Вручную:
-
-- `Инструменты` → `Проверить обновления`
-- `Инструменты` → `Обновить yt-dlp`
-- `Инструменты` → `Обновить ffmpeg`
-- `Инструменты` → `Переустановить инструменты`
-
-## Быстрый старт из исходников
-
-```bash
-git clone https://github.com/Jacksony100/Youtube-Downloader.git
-cd Youtube-Downloader
-python3 -m venv .venv
-source .venv/bin/activate   # Windows: .venv\Scripts\activate
-pip install -r requirements.txt
-python -m app.main
-```
-
-Compatibility wrapper оставлен:
-
-```bash
-python main.py
-```
-
-Для разработки и тестов:
-
-```bash
-pip install -r requirements-dev.txt
-pytest
-python -m compileall app core ui tests main.py
-```
-
-## Сборка Windows onefile
-
-На Windows:
+- CMake 3.21+
+- Ninja
+- C++20 compiler: MSVC 2022, AppleClang или GCC
+- Qt 6.6+ (`Core`, `Widgets`, `Network`, `Test`)
 
 ```powershell
-.\scripts\build_release_windows.ps1
+cmake -S . -B build-cpp -G Ninja `
+  -DCMAKE_BUILD_TYPE=Release `
+  -DCMAKE_PREFIX_PATH="$env:Qt6_DIR" `
+  -DBUILD_TESTING=ON
+cmake --build build-cpp
+ctest --test-dir build-cpp --output-on-failure
 ```
 
-Результат:
-
-- `dist\VideoDownloaderPro.exe`
-- `dist\VideoDownloaderPro-win-x64.zip`
-
-Скрипт:
-
-1. Создаёт `.venv`, если нужно.
-2. Устанавливает зависимости.
-3. Скачивает fallback `yt-dlp.exe` и проверяет SHA256.
-4. Скачивает fallback `ffmpeg.exe`/`ffprobe.exe`.
-5. Собирает `--onefile --windowed` через PyInstaller.
-6. Добавляет fallback tools внутрь exe как `toolchain\...`.
-7. Проверяет наличие `dist\VideoDownloaderPro.exe`.
-
-Опциональный Nuitka-режим сохранён:
+## Windows-релиз
 
 ```powershell
-.\scripts\build_release_windows.ps1 -UseNuitka
+./scripts/build_release_windows.ps1 -QtDir "$env:Qt6_DIR"
 ```
 
-Если fallback-инструменты уже подготовлены и скачивать их не нужно:
+Результат: `dist/VideoDownloaderPro-win-x64.zip`.
 
-```powershell
-.\scripts\build_release_windows.ps1 -SkipToolDownloads
+Скрипт скачивает и проверяет `yt-dlp` и Deno, подготавливает ffmpeg, собирает C++ приложение, запускает CTest и выполняет `windeployqt`.
+
+## macOS-релиз
+
+```bash
+Qt6_DIR=/path/to/Qt/lib/cmake/Qt6 ./scripts/build_release.sh
 ```
 
-## GitHub Actions
+Результат: `dist/VideoDownloaderPro-macOS.zip`.
 
-Workflow `.github/workflows/build-windows-x64.yml` запускает Windows-сборку и публикует zip-артефакт:
-
-- `VideoDownloaderPro.exe`
-- `README.md`
-- `CHANGELOG.md`
-
-## Горячие клавиши
-
-- `Ctrl+L` фокус на поле ссылки
-- `Ctrl+D` добавить в очередь
-- `Ctrl+I` проверить ссылку
-- `Ctrl+O` открыть папку загрузок
-- `Ctrl+Shift+C` отменить все
-- `Ctrl+Shift+X` очистить завершённые
-- `Ctrl+Q` выход
-- `F1` страница «О приложении»
-
-## Структура проекта
+## Структура
 
 ```text
-app/
-  main.py                  # тонкая точка входа
-core/
-  paths.py                 # AppData/runtime/cache/log/data paths
-  settings.py              # JSON settings + миграция старого конфига
-  toolchain.py             # managed yt-dlp/ffmpeg runtime
-  downloader.py            # QProcess metadata/download workers
-  history.py               # SQLite history
-  logger.py                # app/toolchain/download logs + diagnostics
-  validators.py            # URL и человекочитаемые ошибки
-ui/
-  main_window.py
-  sidebar.py
-  pages/
-  widgets/
-  styles/dark.qss
+src/
+  main.cpp              # точка входа
+  main_window.*         # Qt Widgets UI, очередь и процессы
+  core.*                # форматы, пути, ошибки и managed toolchain
+tests_cpp/
+  test_core.cpp         # Qt Test / CTest
 scripts/
   build_release_windows.ps1
+  build_release.sh
 ```
 
 ## Важно
 
-- Поддержка сайтов зависит от актуальности `yt-dlp`.
-- Приложение не обходит авторизацию, возрастные, региональные, платные или DRM-ограничения.
-- Если загрузка ломается после изменений на платформе, сначала обновите `yt-dlp` через страницу «Инструменты».
-
-## Донат
-
-Поддержать проект (USDT TRC20):
-
-- Адрес: `TAa2pm6veN9Jd7X93juoqvoT9WE7QxLKGq`
-- Сеть: `TRON (TRC20)`
+- Поддержка платформ зависит от актуальности `yt-dlp`.
+- Deno 2.3+ требуется для полноценной поддержки YouTube.
+- Приложение не обходит DRM, платные, возрастные, аккаунтные или региональные ограничения.
 
 ## Disclaimer
 
-This software is provided "as is", without warranties of any kind.
-You are responsible for compliance with local laws, copyright rules, and platform terms.
+This software is provided "as is". You are responsible for compliance with local laws, copyright rules and platform terms.
