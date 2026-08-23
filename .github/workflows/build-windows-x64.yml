@@ -18,6 +18,10 @@ jobs:
           arch: win64_mingw
           cache: true
 
+      - name: Install Inno Setup
+        shell: pwsh
+        run: choco install innosetup --yes --no-progress
+
       - name: Build and test native release
         shell: pwsh
         run: ./scripts/build_release_windows.ps1 -QtDir "$env:QT_ROOT_DIR\lib\cmake\Qt6"
@@ -25,5 +29,7 @@ jobs:
       - uses: actions/upload-artifact@v4
         with:
           name: VideoDownloaderPro-win-x64
-          path: dist/VideoDownloaderPro-win-x64.zip
+          path: |
+            dist/VideoDownloaderPro-win-x64.zip
+            dist/VideoDownloaderPro-Setup-4.0.0.exe
           if-no-files-found: error

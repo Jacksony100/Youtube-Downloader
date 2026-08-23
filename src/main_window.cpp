@@ -13,6 +13,7 @@
 #include <QFileInfo>
 #include <QFormLayout>
 #include <QFrame>
+#include <QGridLayout>
 #include <QHBoxLayout>
 #include <QJsonArray>
 #include <QJsonDocument>
@@ -103,16 +104,67 @@ void MainWindow::setupUi() {
     QFile style(":/ui/styles/dark.qss");
     if (style.open(QIODevice::ReadOnly)) qApp->setStyleSheet(QString::fromUtf8(style.readAll()));
 
+    setObjectName("AppWindow");
     auto* root = new QWidget;
+    root->setObjectName("AppRoot");
     auto* layout = new QHBoxLayout(root);
     layout->setContentsMargins(0, 0, 0, 0);
     layout->setSpacing(0);
 
+    auto* sidebar = new QFrame;
+    sidebar->setObjectName("Sidebar");
+    sidebar->setFixedWidth(236);
+    auto* sidebarLayout = new QVBoxLayout(sidebar);
+    sidebarLayout->setContentsMargins(18, 22, 18, 18);
+    sidebarLayout->setSpacing(10);
+
+    auto* brandRow = new QHBoxLayout;
+    auto* brandMark = new QLabel("▶");
+    brandMark->setObjectName("BrandMark");
+    brandMark->setAlignment(Qt::AlignCenter);
+    brandMark->setFixedSize(42, 42);
+    auto* brandText = new QVBoxLayout;
+    brandText->setSpacing(1);
+    auto* brandTitle = new QLabel("Video Downloader");
+    brandTitle->setObjectName("BrandTitle");
+    auto* brandEdition = new QLabel("PRO  •  NATIVE C++");
+    brandEdition->setObjectName("BrandEdition");
+    brandText->addWidget(brandTitle);
+    brandText->addWidget(brandEdition);
+    brandRow->addWidget(brandMark);
+    brandRow->addLayout(brandText, 1);
+    sidebarLayout->addLayout(brandRow);
+    sidebarLayout->addSpacing(20);
+
+    auto* navLabel = new QLabel("РАЗДЕЛЫ");
+    navLabel->setObjectName("SidebarSection");
+    sidebarLayout->addWidget(navLabel);
     navigation_ = new QListWidget;
-    navigation_->setFixedWidth(220);
-    navigation_->setObjectName("Sidebar");
-    navigation_->addItems({"Загрузки", "История", "Инструменты", "Настройки", "О приложении"});
+    navigation_->setObjectName("SidebarNavigation");
+    navigation_->setFrameShape(QFrame::NoFrame);
+    navigation_->setHorizontalScrollBarPolicy(Qt::ScrollBarAlwaysOff);
+    navigation_->setFocusPolicy(Qt::NoFocus);
+    navigation_->addItems({"  Загрузки", "  История", "  Инструменты", "  Настройки", "  О приложении"});
+    for (int row = 0; row < navigation_->count(); ++row)
+        navigation_->item(row)->setSizeHint(QSize(190, 46));
     navigation_->setCurrentRow(0);
+    sidebarLayout->addWidget(navigation_, 1);
+
+    auto* runtimeCard = new QFrame;
+    runtimeCard->setObjectName("SidebarRuntimeCard");
+    auto* runtimeLayout = new QVBoxLayout(runtimeCard);
+    runtimeLayout->setContentsMargins(12, 10, 12, 10);
+    runtimeLayout->setSpacing(3);
+    auto* runtimeTitle = new QLabel("●  MANAGED RUNTIME");
+    runtimeTitle->setObjectName("RuntimeTitle");
+    auto* runtimeText = new QLabel("yt-dlp  •  Deno  •  FFmpeg");
+    runtimeText->setObjectName("SidebarFooter");
+    runtimeLayout->addWidget(runtimeTitle);
+    runtimeLayout->addWidget(runtimeText);
+    sidebarLayout->addWidget(runtimeCard);
+    auto* author = new QLabel("Coded by Jacksony  •  v" VDP_VERSION);
+    author->setObjectName("SidebarFooter");
+    sidebarLayout->addWidget(author);
 
     pages_ = new QStackedWidget;
     pages_->addWidget(createDownloadsPage());
@@ -122,74 +174,142 @@ void MainWindow::setupUi() {
     pages_->addWidget(createAboutPage());
     connect(navigation_, &QListWidget::currentRowChanged, pages_, &QStackedWidget::setCurrentIndex);
 
-    layout->addWidget(navigation_);
+    layout->addWidget(sidebar);
     layout->addWidget(pages_, 1);
     setCentralWidget(root);
 }
 
 QWidget* MainWindow::createDownloadsPage() {
     auto* page = new QWidget;
+    page->setObjectName("Page");
     auto* root = new QVBoxLayout(page);
-    root->setContentsMargins(24, 22, 24, 18);
-    root->setSpacing(14);
-    root->addWidget(heading("Загрузки"));
-    root->addWidget(createMutedLabel("Скачивайте видео и аудио через актуальный yt-dlp с managed Deno runtime."));
+    root->setContentsMargins(30, 26, 30, 20);
+    root->setSpacing(16);
+
+    auto* header = new QHBoxLayout;
+    auto* headerText = new QVBoxLayout;
+    headerText->setSpacing(3);
+    headerText->addWidget(heading("Загрузки"));
+    auto* subtitle = createMutedLabel("Вставьте ссылку, выберите качество и добавьте видео в очередь.");
+    subtitle->setObjectName("PageSubtitle");
+    headerText->addWidget(subtitle);
+    header->addLayout(headerText, 1);
+    ytdlpChip_ = new QLabel("yt-dlp   подготовка");
+    ytdlpChip_->setObjectName("StatChip");
+    ffmpegChip_ = new QLabel("runtime   подготовка");
+    ffmpegChip_->setObjectName("StatChip");
+    header->addWidget(ytdlpChip_);
+    header->addWidget(ffmpegChip_);
+    root->addLayout(header);
 
     auto* inputCard = new QFrame;
     inputCard->setObjectName("Card");
     auto* inputLayout = new QVBoxLayout(inputCard);
-    inputLayout->setContentsMargins(18, 18, 18, 18);
-    auto* inputRow = new QHBoxLayout;
+    inputLayout->setContentsMargins(20, 18, 20, 20);
+    inputLayout->setSpacing(12);
+    auto* inputGrid = new QGridLayout;
+    inputGrid->setHorizontalSpacing(10);
+    inputGrid->setVerticalSpacing(7);
+    auto* urlLabel = new QLabel("ССЫЛКА НА ВИДЕО");
+    urlLabel->setObjectName("InputLabel");
+    auto* formatLabel = new QLabel("КАЧЕСТВО");
+    formatLabel->setObjectName("InputLabel");
     urlEdit_ = new QLineEdit;
-    urlEdit_->setPlaceholderText("Вставьте ссылку на видео");
+    urlEdit_->setObjectName("Input");
+    urlEdit_->setMinimumHeight(46);
+    urlEdit_->setPlaceholderText("https://www.youtube.com/watch?v=...");
     auto* paste = createButton("Вставить");
     auto* check = createButton("Проверить");
     auto* add = createButton("Добавить в очередь", "PrimaryButton");
     formatCombo_ = new QComboBox;
+    formatCombo_->setObjectName("Input");
+    formatCombo_->setMinimumHeight(46);
     for (const auto& preset : formatPresets()) formatCombo_->addItem(preset.label, preset.key);
-    inputRow->addWidget(urlEdit_, 1);
-    inputRow->addWidget(formatCombo_);
-    inputRow->addWidget(paste);
-    inputRow->addWidget(check);
-    inputRow->addWidget(add);
-    inputLayout->addLayout(inputRow);
+    for (auto* button : {paste, check, add}) button->setMinimumHeight(46);
+    inputGrid->addWidget(urlLabel, 0, 0);
+    inputGrid->addWidget(formatLabel, 0, 1);
+    inputGrid->addWidget(urlEdit_, 1, 0);
+    inputGrid->addWidget(formatCombo_, 1, 1);
+    inputGrid->addWidget(paste, 1, 2);
+    inputGrid->addWidget(check, 1, 3);
+    inputGrid->addWidget(add, 1, 4);
+    inputGrid->setColumnStretch(0, 1);
+    inputGrid->setColumnMinimumWidth(1, 130);
+    inputLayout->addLayout(inputGrid);
 
     auto* preview = new QFrame;
     preview->setObjectName("PreviewCard");
-    auto* previewLayout = new QVBoxLayout(preview);
+    auto* previewLayout = new QHBoxLayout(preview);
+    previewLayout->setContentsMargins(14, 14, 16, 14);
+    previewLayout->setSpacing(16);
+    auto* artwork = new QLabel("PREVIEW\nVIDEO");
+    artwork->setObjectName("PreviewArtwork");
+    artwork->setAlignment(Qt::AlignLeft | Qt::AlignBottom);
+    artwork->setFixedSize(168, 92);
+    artwork->setMargin(14);
+    auto* previewText = new QVBoxLayout;
+    previewText->setSpacing(5);
     previewTitle_ = heading("Ссылка ещё не проверена", "SectionTitle");
     previewDetails_ = createMutedLabel("Нажмите «Проверить», чтобы получить название, автора и длительность.");
-    previewLayout->addWidget(previewTitle_);
-    previewLayout->addWidget(previewDetails_);
+    previewText->addWidget(previewTitle_);
+    previewText->addWidget(previewDetails_);
+    previewText->addStretch();
+    previewLayout->addWidget(artwork);
+    previewLayout->addLayout(previewText, 1);
     inputLayout->addWidget(preview);
     root->addWidget(inputCard);
 
     auto* statusRow = new QHBoxLayout;
+    auto* queueTitle = heading("Очередь", "SectionTitle");
     queueStatus_ = createMutedLabel("Активных: 0 • В очереди: 0");
-    ytdlpChip_ = createMutedLabel("yt-dlp: подготовка");
-    ffmpegChip_ = createMutedLabel("ffmpeg: подготовка");
+    auto* clearFinished = createButton("Очистить завершённые");
+    auto* cancelAll = createButton("Отменить все", "DangerButton");
+    statusRow->addWidget(queueTitle);
     statusRow->addWidget(queueStatus_);
     statusRow->addStretch();
-    statusRow->addWidget(ytdlpChip_);
-    statusRow->addWidget(ffmpegChip_);
+    statusRow->addWidget(clearFinished);
+    statusRow->addWidget(cancelAll);
     root->addLayout(statusRow);
 
     auto* scroll = new QScrollArea;
     scroll->setWidgetResizable(true);
     scroll->setFrameShape(QFrame::NoFrame);
     auto* container = new QWidget;
+    container->setObjectName("QueueContainer");
     queueLayout_ = new QVBoxLayout(container);
     queueLayout_->setAlignment(Qt::AlignTop);
-    emptyQueue_ = createMutedLabel("Очередь пуста. Добавьте первую ссылку.");
-    emptyQueue_->setMinimumHeight(80);
+    auto* emptyState = new QFrame;
+    emptyState->setObjectName("EmptyState");
+    auto* emptyLayout = new QVBoxLayout(emptyState);
+    emptyLayout->setContentsMargins(24, 25, 24, 25);
+    auto* emptyIcon = new QLabel("↓");
+    emptyIcon->setObjectName("EmptyStateIcon");
+    emptyIcon->setAlignment(Qt::AlignCenter);
+    auto* emptyTitle = heading("Очередь пока пуста", "EmptyStateTitle");
+    emptyTitle->setAlignment(Qt::AlignCenter);
+    auto* emptyText = createMutedLabel("Добавленные видео и аудио появятся здесь.");
+    emptyText->setAlignment(Qt::AlignCenter);
+    emptyLayout->addWidget(emptyIcon);
+    emptyLayout->addWidget(emptyTitle);
+    emptyLayout->addWidget(emptyText);
+    emptyQueue_ = emptyState;
     queueLayout_->addWidget(emptyQueue_);
     scroll->setWidget(container);
     root->addWidget(scroll, 1);
 
     auto* help = new QFrame;
-    help->setObjectName("Card");
+    help->setObjectName("NoticeCard");
     auto* helpLayout = new QHBoxLayout(help);
-    helpLayout->addWidget(createMutedLabel("Видео не грузится? Иногда причина в сетевых ограничениях."), 1);
+    helpLayout->setContentsMargins(16, 12, 16, 12);
+    auto* helpText = new QVBoxLayout;
+    helpText->setSpacing(3);
+    auto* helpTitle = new QLabel("Видео не грузится?");
+    helpTitle->setObjectName("NoticeTitle");
+    auto* helpBody = new QLabel("Иногда причина в сетевых ограничениях. Попробуйте безопасный интернет-маршрут от onyshop.tech.");
+    helpBody->setObjectName("NoticeText");
+    helpText->addWidget(helpTitle);
+    helpText->addWidget(helpBody);
+    helpLayout->addLayout(helpText, 1);
     auto* site = createButton("Открыть onyshop.tech");
     helpLayout->addWidget(site);
     root->addWidget(help);
@@ -199,17 +319,32 @@ QWidget* MainWindow::createDownloadsPage() {
     connect(add, &QPushButton::clicked, this, &MainWindow::addDownload);
     connect(urlEdit_, &QLineEdit::returnPressed, this, &MainWindow::addDownload);
     connect(site, &QPushButton::clicked, this, [] { QDesktopServices::openUrl(QUrl("https://onyshop.tech")); });
+    connect(clearFinished, &QPushButton::clicked, this, [this] {
+        for (auto* task : tasks_) if (task->completed && task->card) task->card->hide();
+    });
+    connect(cancelAll, &QPushButton::clicked, this, [this] {
+        const auto allTasks = tasks_.values();
+        for (auto* task : allTasks) if (!task->completed) cancelTask(task);
+    });
     return page;
 }
 
 QWidget* MainWindow::createHistoryPage() {
     auto* page = new QWidget;
+    page->setObjectName("Page");
     auto* root = new QVBoxLayout(page);
-    root->setContentsMargins(24, 22, 24, 18);
-    root->addWidget(heading("История"));
+    root->setContentsMargins(30, 26, 30, 22);
+    root->setSpacing(16);
+    root->addWidget(heading("История загрузок"));
+    auto* subtitle = createMutedLabel("Все завершённые, отменённые и неудачные задачи в одном месте.");
+    subtitle->setObjectName("PageSubtitle");
+    root->addWidget(subtitle);
     historySearch_ = new QLineEdit;
+    historySearch_->setObjectName("Input");
+    historySearch_->setMinimumHeight(46);
     historySearch_->setPlaceholderText("Поиск по названию или ссылке");
     historyList_ = new QListWidget;
+    historyList_->setObjectName("HistoryList");
     root->addWidget(historySearch_);
     root->addWidget(historyList_, 1);
     connect(historySearch_, &QLineEdit::textChanged, this, &MainWindow::loadHistory);
@@ -222,16 +357,41 @@ QWidget* MainWindow::createHistoryPage() {
 
 QWidget* MainWindow::createToolsPage() {
     auto* page = new QWidget;
+    page->setObjectName("Page");
     auto* root = new QVBoxLayout(page);
-    root->setContentsMargins(24, 22, 24, 18);
+    root->setContentsMargins(30, 26, 30, 22);
+    root->setSpacing(16);
     root->addWidget(heading("Инструменты"));
-    root->addWidget(createMutedLabel("Нативное приложение управляет yt-dlp, Deno и ffmpeg отдельно от основного exe."));
+    auto* subtitle = createMutedLabel("Управляйте компонентами загрузки отдельно от основного приложения.");
+    subtitle->setObjectName("PageSubtitle");
+    root->addWidget(subtitle);
+    auto* hero = new QFrame;
+    hero->setObjectName("ToolsHero");
+    auto* heroLayout = new QHBoxLayout(hero);
+    heroLayout->setContentsMargins(22, 18, 22, 18);
+    auto* heroText = new QVBoxLayout;
+    auto* heroTitle = new QLabel("Managed Runtime");
+    heroTitle->setObjectName("HeroTitle");
+    auto* heroBody = new QLabel("yt-dlp + Deno + FFmpeg  •  автономно  •  без Python");
+    heroBody->setObjectName("HeroText");
+    heroText->addWidget(heroTitle);
+    heroText->addWidget(heroBody);
+    auto* heroBadge = new QLabel("NATIVE");
+    heroBadge->setObjectName("HeroBadge");
+    heroLayout->addLayout(heroText, 1);
+    heroLayout->addWidget(heroBadge);
+    root->addWidget(hero);
     auto* card = new QFrame;
     card->setObjectName("Card");
     auto* layout = new QVBoxLayout(card);
+    layout->setContentsMargins(20, 18, 20, 18);
+    layout->setSpacing(12);
     ytdlpStatus_ = createMutedLabel("yt-dlp: проверка...");
     denoStatus_ = createMutedLabel("Deno: проверка...");
     ffmpegStatus_ = createMutedLabel("ffmpeg: проверка...");
+    ytdlpStatus_->setObjectName("ToolStatus");
+    denoStatus_->setObjectName("ToolStatus");
+    ffmpegStatus_->setObjectName("ToolStatus");
     layout->addWidget(ytdlpStatus_);
     layout->addWidget(denoStatus_);
     layout->addWidget(ffmpegStatus_);
@@ -259,20 +419,32 @@ QWidget* MainWindow::createToolsPage() {
 
 QWidget* MainWindow::createSettingsPage() {
     auto* page = new QWidget;
+    page->setObjectName("Page");
     auto* root = new QVBoxLayout(page);
-    root->setContentsMargins(24, 22, 24, 18);
+    root->setContentsMargins(30, 26, 30, 22);
+    root->setSpacing(16);
     root->addWidget(heading("Настройки"));
+    auto* subtitle = createMutedLabel("Настройте папку, параллельные загрузки и поведение после завершения.");
+    subtitle->setObjectName("PageSubtitle");
+    root->addWidget(subtitle);
     auto* card = new QFrame;
     card->setObjectName("Card");
     auto* form = new QFormLayout(card);
+    form->setContentsMargins(22, 22, 22, 22);
+    form->setHorizontalSpacing(22);
+    form->setVerticalSpacing(18);
     auto* outputRow = new QWidget;
     auto* outputLayout = new QHBoxLayout(outputRow);
     outputLayout->setContentsMargins(0, 0, 0, 0);
     outputEdit_ = new QLineEdit;
+    outputEdit_->setObjectName("Input");
+    outputEdit_->setMinimumHeight(44);
     auto* browse = createButton("Выбрать");
     outputLayout->addWidget(outputEdit_, 1);
     outputLayout->addWidget(browse);
     parallelSpin_ = new QSpinBox;
+    parallelSpin_->setObjectName("Input");
+    parallelSpin_->setMinimumHeight(44);
     parallelSpin_->setRange(1, 5);
     autoOpenCheck_ = new QCheckBox("Открывать готовый файл");
     form->addRow("Папка загрузок", outputRow);
@@ -289,14 +461,29 @@ QWidget* MainWindow::createSettingsPage() {
 
 QWidget* MainWindow::createAboutPage() {
     auto* page = new QWidget;
+    page->setObjectName("Page");
     auto* root = new QVBoxLayout(page);
-    root->setContentsMargins(24, 22, 24, 18);
-    root->addWidget(heading("Video Downloader Pro"));
-    root->addWidget(heading(QString("Версия %1 • C++20 / Qt 6").arg(VDP_VERSION), "SectionTitle"));
-    root->addWidget(createMutedLabel("Нативное desktop-приложение для загрузки видео и аудио через yt-dlp. Python не требуется."));
+    root->setContentsMargins(30, 26, 30, 22);
+    root->setSpacing(16);
+    auto* aboutHero = new QFrame;
+    aboutHero->setObjectName("AboutHero");
+    auto* aboutLayout = new QVBoxLayout(aboutHero);
+    aboutLayout->setContentsMargins(32, 30, 32, 30);
+    auto* mark = new QLabel("▶");
+    mark->setObjectName("AboutMark");
+    mark->setAlignment(Qt::AlignCenter);
+    mark->setFixedSize(56, 56);
+    aboutLayout->addWidget(mark);
+    aboutLayout->addWidget(heading("Video Downloader Pro"));
+    aboutLayout->addWidget(heading(QString("Версия %1  •  C++20 / Qt 6").arg(VDP_VERSION), "SectionTitle"));
+    auto* description = createMutedLabel("Быстрое нативное приложение для загрузки видео и аудио через yt-dlp.\nPython не требуется — весь интерфейс и управление процессами написаны на C++.");
+    description->setObjectName("AboutText");
+    aboutLayout->addWidget(description);
     auto* repo = createButton("Открыть GitHub", "PrimaryButton");
     connect(repo, &QPushButton::clicked, this, [] { QDesktopServices::openUrl(QUrl(VDP_REPOSITORY)); });
-    root->addWidget(repo, 0, Qt::AlignLeft);
+    aboutLayout->addSpacing(10);
+    aboutLayout->addWidget(repo, 0, Qt::AlignLeft);
+    root->addWidget(aboutHero);
     root->addStretch();
     return page;
 }

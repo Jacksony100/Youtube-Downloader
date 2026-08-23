@@ -14,6 +14,7 @@ Python не требуется ни пользователю, ни прилож�
 - Отдельное обновление `yt-dlp`, Deno и ffmpeg.
 - Явная передача Deno через `--js-runtimes` для полной поддержки YouTube.
 - Windows x64 и macOS release workflows.
+- Windows-установщик Inno Setup с ярлыками и штатным удалением программы.
 
 ## Runtime
 

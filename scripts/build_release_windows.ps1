@@ -1,5 +1,6 @@
 param(
     [string]$QtDir = $env:Qt6_DIR,
+    [string]$InnoSetupCompiler = $env:ISCC_PATH,
     [switch]$SkipToolDownloads
 )
 
@@ -125,3 +126,60 @@ $zip = Join-Path $root "dist\VideoDownloaderPro-win-x64.zip"
 if (Test-Path -LiteralPath $zip) { Remove-Item -LiteralPath $zip -Force }
 Compress-Archive -Path (Join-Path $package "*") -DestinationPath $zip -Force
 Write-Host "[OK] Native C++ package: $zip"
+
+if (-not $InnoSetupCompiler) {
+    $isccCommand = Get-Command "ISCC.exe" -ErrorAction SilentlyContinue
+    if ($isccCommand) {
+        $InnoSetupCompiler = $isccCommand.Source
+    } else {
+        $knownIscc = Join-Path ${env:ProgramFiles(x86)} "Inno Setup 6\ISCC.exe"
+        if (Test-Path -LiteralPath $knownIscc) { $InnoSetupCompiler = $knownIscc }
+    }
+}
+if (-not $InnoSetupCompiler -or -not (Test-Path -LiteralPath $InnoSetupCompiler)) {
+    throw "Inno Setup 6 compiler not found. Set ISCC_PATH or pass -InnoSetupCompiler."
+}
+
+$installerScript = Join-Path $root "installer\VideoDownloaderPro.iss"
+& $InnoSetupCompiler `
+    "/DAppVersion=4.0.0" `
+    "/DPackageDir=$package" `
+    "/DOutputDir=$(Join-Path $root 'dist')" `
+    $installerScript
+
+$installer = Join-Path $root "dist\VideoDownloaderPro-Setup-4.0.0.exe"
+if (-not (Test-Path -LiteralPath $installer)) { throw "Installer was not created: $installer" }
+
+$installTarget = Join-Path $root "build-cpp\installer-smoke\app"
+if (Test-Path -LiteralPath $installTarget) { Remove-Item -LiteralPath $installTarget -Recurse -Force }
+$setupProcess = Start-Process `
+    -FilePath $installer `
+    -ArgumentList "/VERYSILENT", "/SUPPRESSMSGBOXES", "/NORESTART", "/SP-", "/DIR=`"$installTarget`"" `
+    -WindowStyle Hidden `
+    -Wait `
+    -PassThru
+if ($setupProcess.ExitCode -ne 0) { throw "Installer smoke test failed with exit code $($setupProcess.ExitCode)" }
+
+$installedExe = Join-Path $installTarget "VideoDownloaderPro.exe"
+if (-not (Test-Path -LiteralPath $installedExe)) { throw "Installed executable not found: $installedExe" }
+
+$installerSmokeData = Join-Path $root "build-cpp\installer-smoke\localappdata"
+New-Item -ItemType Directory -Force $installerSmokeData | Out-Null
+$previousLocalAppData = $env:LOCALAPPDATA
+$env:LOCALAPPDATA = $installerSmokeData
+$env:VDP_SMOKE_TEST = "1"
+try {
+    $installedProcess = Start-Process `
+        -FilePath $installedExe `
+        -WorkingDirectory $installTarget `
+        -WindowStyle Hidden `
+        -Wait `
+        -PassThru
+    if ($installedProcess.ExitCode -ne 0) {
+        throw "Installed app smoke test failed with exit code $($installedProcess.ExitCode)"
+    }
+} finally {
+    $env:LOCALAPPDATA = $previousLocalAppData
+    Remove-Item Env:\VDP_SMOKE_TEST -ErrorAction SilentlyContinue
+}
+Write-Host "[OK] Windows installer smoke test passed: $installer"
