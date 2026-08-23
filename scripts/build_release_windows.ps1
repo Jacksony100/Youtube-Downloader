@@ -104,7 +104,15 @@ $previousLocalAppData = $env:LOCALAPPDATA
 $env:LOCALAPPDATA = $smokeData
 $env:VDP_SMOKE_TEST = "1"
 try {
-    & (Join-Path $package "VideoDownloaderPro.exe")
+    $smokeProcess = Start-Process `
+        -FilePath (Join-Path $package "VideoDownloaderPro.exe") `
+        -WorkingDirectory $package `
+        -WindowStyle Hidden `
+        -Wait `
+        -PassThru
+    if ($smokeProcess.ExitCode -ne 0) {
+        throw "Packaged app smoke test failed with exit code $($smokeProcess.ExitCode)"
+    }
 } finally {
     $env:LOCALAPPDATA = $previousLocalAppData
     Remove-Item Env:\VDP_SMOKE_TEST -ErrorAction SilentlyContinue
