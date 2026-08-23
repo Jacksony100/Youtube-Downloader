@@ -212,7 +212,8 @@ QPushButton#DangerButton {
 QPushButton#DangerButton:hover { background-color: #381b25; border-color: #b44b65; }
 QPushButton:disabled { color: #667185; background-color: #151b25; border-color: #252e3e; }
 
-QLabel#PreviewArtwork {
+QLabel#PreviewArtwork,
+QLabel#TaskThumbnail {
     color: #ffffff;
     font-family: "Segoe UI Variable Display", "Segoe UI", sans-serif;
     font-size: 16px;
@@ -221,6 +222,11 @@ QLabel#PreviewArtwork {
         stop:0 #291c62, stop:0.38 #7136e8, stop:0.72 #347aca, stop:1 #22c795);
     border: 1px solid #7157d9;
     border-radius: 10px;
+}
+
+QLabel#TaskThumbnail {
+    font-size: 13px;
+    border-color: #465377;
 }
 
 QFrame#EmptyState {

@@ -31,5 +31,5 @@ jobs:
           name: VideoDownloaderPro-win-x64
           path: |
             dist/VideoDownloaderPro-win-x64.zip
-            dist/VideoDownloaderPro-Setup-4.0.1.exe
+            dist/VideoDownloaderPro-Setup-4.0.2.exe
           if-no-files-found: error

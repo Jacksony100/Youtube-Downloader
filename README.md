@@ -33,7 +33,7 @@
 ## Установка на Windows
 
 1. Откройте [последний релиз](https://github.com/Jacksony100/Youtube-Downloader/releases/latest).
-2. Скачайте **`VideoDownloaderPro-Setup-4.0.1.exe`**.
+2. Скачайте **`VideoDownloaderPro-Setup-4.0.2.exe`**.
 3. Запустите установщик и следуйте подсказкам.
 
 Установщик добавляет приложение в меню «Пуск», по желанию создаёт ярлык на рабочем столе и поддерживает штатное удаление через настройки Windows. Права администратора не требуются.
@@ -105,7 +105,7 @@ ctest --test-dir build-cpp --output-on-failure
 Результаты:
 
 - `dist/VideoDownloaderPro-win-x64.zip`
-- `dist/VideoDownloaderPro-Setup-4.0.1.exe`
+- `dist/VideoDownloaderPro-Setup-4.0.2.exe`
 
 ### macOS
 

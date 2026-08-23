@@ -3,6 +3,7 @@
 #include "core.hpp"
 
 #include <QHash>
+#include <QJsonObject>
 #include <QMainWindow>
 #include <QSettings>
 
@@ -12,6 +13,7 @@ class QFrame;
 class QLabel;
 class QLineEdit;
 class QListWidget;
+class QNetworkAccessManager;
 class QProcess;
 class QProgressBar;
 class QPushButton;
@@ -40,7 +42,9 @@ private:
         QString stderrText;
         QByteArray stdoutBuffer;
         QFrame* card = nullptr;
+        QLabel* thumbnail = nullptr;
         QLabel* titleLabel = nullptr;
+        QLabel* metadataLabel = nullptr;
         QLabel* statusLabel = nullptr;
         QLabel* speedLabel = nullptr;
         QProgressBar* progress = nullptr;
@@ -61,6 +65,7 @@ private:
     QComboBox* formatCombo_ = nullptr;
     QLabel* previewTitle_ = nullptr;
     QLabel* previewDetails_ = nullptr;
+    QLabel* previewArtwork_ = nullptr;
     QLabel* queueStatus_ = nullptr;
     QLabel* ytdlpChip_ = nullptr;
     QLabel* ffmpegChip_ = nullptr;
@@ -76,6 +81,10 @@ private:
     QSpinBox* parallelSpin_ = nullptr;
     QCheckBox* autoOpenCheck_ = nullptr;
     QProcess* metadataProcess_ = nullptr;
+    QNetworkAccessManager* thumbnailNetwork_ = nullptr;
+
+    QString checkedUrl_;
+    QJsonObject checkedMetadata_;
 
     QHash<QString, Task*> tasks_;
     QStringList pending_;
@@ -98,6 +107,9 @@ private:
     void checkUrl();
     void addDownload();
     Task* createTask(const QString& url, const FormatPreset& preset);
+    void hydrateTaskMetadata(Task* task);
+    void applyTaskMetadata(Task* task, const QJsonObject& metadata);
+    void loadThumbnail(const QString& url, QLabel* target);
     void startNextDownloads();
     void startTask(Task* task);
     void consumeTaskOutput(Task* task, bool flush = false);

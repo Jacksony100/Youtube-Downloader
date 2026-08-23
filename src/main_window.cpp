@@ -25,6 +25,11 @@
 #include <QListWidget>
 #include <QMenuBar>
 #include <QMessageBox>
+#include <QNetworkAccessManager>
+#include <QNetworkReply>
+#include <QNetworkRequest>
+#include <QPixmap>
+#include <QPointer>
 #include <QProcess>
 #include <QProgressBar>
 #include <QPushButton>
@@ -58,6 +63,7 @@ bool validUrl(const QString& value) {
 MainWindow::MainWindow(QWidget* parent)
     : QMainWindow(parent), paths_(AppPaths::defaults()), toolchain_(paths_),
       settings_(paths_.settingsFile, QSettings::IniFormat) {
+    thumbnailNetwork_ = new QNetworkAccessManager(this);
     setWindowTitle(QString("%1 %2").arg(kAppTitle, VDP_VERSION));
     setMinimumSize(1100, 720);
     resize(1280, 820);
@@ -242,11 +248,11 @@ QWidget* MainWindow::createDownloadsPage() {
     auto* previewLayout = new QHBoxLayout(preview);
     previewLayout->setContentsMargins(14, 14, 16, 14);
     previewLayout->setSpacing(16);
-    auto* artwork = new QLabel("PREVIEW\nVIDEO");
-    artwork->setObjectName("PreviewArtwork");
-    artwork->setAlignment(Qt::AlignLeft | Qt::AlignBottom);
-    artwork->setFixedSize(168, 92);
-    artwork->setMargin(14);
+    previewArtwork_ = new QLabel("PREVIEW\nVIDEO");
+    previewArtwork_->setObjectName("PreviewArtwork");
+    previewArtwork_->setAlignment(Qt::AlignLeft | Qt::AlignBottom);
+    previewArtwork_->setFixedSize(168, 92);
+    previewArtwork_->setMargin(14);
     auto* previewText = new QVBoxLayout;
     previewText->setSpacing(5);
     previewTitle_ = heading("Ссылка ещё не проверена", "SectionTitle");
@@ -254,7 +260,7 @@ QWidget* MainWindow::createDownloadsPage() {
     previewText->addWidget(previewTitle_);
     previewText->addWidget(previewDetails_);
     previewText->addStretch();
-    previewLayout->addWidget(artwork);
+    previewLayout->addWidget(previewArtwork_);
     previewLayout->addLayout(previewText, 1);
     inputLayout->addWidget(preview);
     root->addWidget(inputCard);
@@ -554,27 +560,33 @@ void MainWindow::checkUrl() {
     if (!validUrl(url)) { showMessage("Введите корректную ссылку.", true); return; }
     if (!QFileInfo::exists(toolchain_.ytdlpPath())) { navigation_->setCurrentRow(2); showMessage("yt-dlp не найден.", true); return; }
     if (metadataProcess_) { metadataProcess_->kill(); metadataProcess_->deleteLater(); }
+    checkedUrl_.clear();
+    checkedMetadata_ = {};
     previewTitle_->setText("Получение информации...");
     previewDetails_->setText(url);
-    metadataProcess_ = new QProcess(this);
-    connect(metadataProcess_, &QProcess::finished, this, [this](int exitCode, QProcess::ExitStatus) {
-        const QByteArray output = metadataProcess_->readAllStandardOutput();
-        const QString errors = QString::fromUtf8(metadataProcess_->readAllStandardError());
+    auto* process = new QProcess(this);
+    metadataProcess_ = process;
+    connect(process, &QProcess::finished, this, [this, process, url](int exitCode, QProcess::ExitStatus) {
+        const QByteArray output = process->readAllStandardOutput();
+        const QString errors = QString::fromUtf8(process->readAllStandardError());
         if (exitCode == 0) {
             const auto json = QJsonDocument::fromJson(output).object();
+            checkedUrl_ = url;
+            checkedMetadata_ = json;
             previewTitle_->setText(json.value("title").toString("Без названия"));
             const int seconds = json.value("duration").toInt();
             previewDetails_->setText(QString("%1 • %2:%3")
                 .arg(json.value("uploader").toString("Автор неизвестен"))
                 .arg(seconds / 60).arg(seconds % 60, 2, 10, QLatin1Char('0')));
+            loadThumbnail(json.value("thumbnail").toString(), previewArtwork_);
         } else {
             previewTitle_->setText("Не удалось проверить ссылку");
             previewDetails_->setText(sanitizeError(errors));
         }
-        metadataProcess_->deleteLater();
-        metadataProcess_ = nullptr;
+        process->deleteLater();
+        if (metadataProcess_ == process) metadataProcess_ = nullptr;
     });
-    metadataProcess_->start(toolchain_.ytdlpPath(), buildMetadataArguments(url, toolchain_.denoPath()));
+    process->start(toolchain_.ytdlpPath(), buildMetadataArguments(url, toolchain_.denoPath()));
 }
 
 MainWindow::Task* MainWindow::createTask(const QString& url, const FormatPreset& preset) {
@@ -582,29 +594,95 @@ MainWindow::Task* MainWindow::createTask(const QString& url, const FormatPreset&
     task->id = QUuid::createUuid().toString(QUuid::WithoutBraces);
     task->url = url;
     task->preset = preset;
-    task->title = previewTitle_->text() == "Ссылка ещё не проверена" ? url : previewTitle_->text();
+    task->title = url;
     task->card = new QFrame;
     task->card->setObjectName("Card");
-    auto* layout = new QVBoxLayout(task->card);
+    auto* layout = new QHBoxLayout(task->card);
+    layout->setContentsMargins(14, 14, 14, 14);
+    layout->setSpacing(16);
+    task->thumbnail = new QLabel("VIDEO");
+    task->thumbnail->setObjectName("TaskThumbnail");
+    task->thumbnail->setAlignment(Qt::AlignLeft | Qt::AlignBottom);
+    task->thumbnail->setFixedSize(168, 94);
+    task->thumbnail->setMargin(12);
+    layout->addWidget(task->thumbnail);
+
+    auto* details = new QVBoxLayout;
+    details->setSpacing(7);
     auto* top = new QHBoxLayout;
     task->titleLabel = heading(task->title, "SectionTitle");
+    task->titleLabel->setWordWrap(true);
     task->cancelButton = createButton("Отменить", "DangerButton");
     top->addWidget(task->titleLabel, 1);
     top->addWidget(task->cancelButton);
-    task->statusLabel = createMutedLabel(QString("В очереди • %1").arg(preset.label));
+    task->metadataLabel = createMutedLabel(QString("%1 • получение информации...").arg(preset.label));
+    task->statusLabel = createMutedLabel("В очереди");
     task->progress = new QProgressBar;
     task->progress->setRange(0, 1000);
     task->progress->setValue(0);
     task->speedLabel = createMutedLabel({});
-    layout->addLayout(top);
-    layout->addWidget(task->statusLabel);
-    layout->addWidget(task->progress);
-    layout->addWidget(task->speedLabel);
+    details->addLayout(top);
+    details->addWidget(task->metadataLabel);
+    details->addWidget(task->statusLabel);
+    details->addWidget(task->progress);
+    details->addWidget(task->speedLabel);
+    layout->addLayout(details, 1);
     connect(task->cancelButton, &QPushButton::clicked, this, [this, task] { cancelTask(task); });
     queueLayout_->addWidget(task->card);
     emptyQueue_->hide();
     tasks_.insert(task->id, task);
+    if (checkedUrl_ == url && !checkedMetadata_.isEmpty()) applyTaskMetadata(task, checkedMetadata_);
+    else hydrateTaskMetadata(task);
     return task;
+}
+
+void MainWindow::hydrateTaskMetadata(Task* task) {
+    auto* process = new QProcess(this);
+    connect(process, &QProcess::finished, this, [this, process, task](int exitCode, QProcess::ExitStatus) {
+        if (exitCode == 0) {
+            const QJsonObject metadata = QJsonDocument::fromJson(process->readAllStandardOutput()).object();
+            if (!metadata.isEmpty()) applyTaskMetadata(task, metadata);
+        }
+        process->deleteLater();
+    });
+    process->start(toolchain_.ytdlpPath(), buildMetadataArguments(task->url, toolchain_.denoPath()));
+}
+
+void MainWindow::applyTaskMetadata(Task* task, const QJsonObject& metadata) {
+    const QString title = metadata.value("title").toString().trimmed();
+    if (!title.isEmpty()) {
+        task->title = title;
+        task->titleLabel->setText(title);
+    }
+    QStringList details{task->preset.label};
+    const QString uploader = metadata.value("uploader").toString().trimmed();
+    if (!uploader.isEmpty()) details << uploader;
+    const int seconds = metadata.value("duration").toInt();
+    if (seconds > 0) details << QString("%1:%2").arg(seconds / 60).arg(seconds % 60, 2, 10, QLatin1Char('0'));
+    task->metadataLabel->setText(details.join(" • "));
+    loadThumbnail(metadata.value("thumbnail").toString(), task->thumbnail);
+}
+
+void MainWindow::loadThumbnail(const QString& url, QLabel* target) {
+    if (url.isEmpty() || !target) return;
+    QNetworkRequest request{QUrl(url)};
+    request.setHeader(QNetworkRequest::UserAgentHeader, "VideoDownloaderPro/" VDP_VERSION);
+    auto* reply = thumbnailNetwork_->get(request);
+    const QPointer<QLabel> safeTarget(target);
+    connect(reply, &QNetworkReply::finished, this, [reply, safeTarget] {
+        if (safeTarget && reply->error() == QNetworkReply::NoError) {
+            QPixmap image;
+            if (image.loadFromData(reply->readAll())) {
+                const QSize size = safeTarget->size();
+                const QPixmap scaled = image.scaled(size, Qt::KeepAspectRatioByExpanding, Qt::SmoothTransformation);
+                const int x = qMax(0, (scaled.width() - size.width()) / 2);
+                const int y = qMax(0, (scaled.height() - size.height()) / 2);
+                safeTarget->setPixmap(scaled.copy(x, y, size.width(), size.height()));
+                safeTarget->setText({});
+            }
+        }
+        reply->deleteLater();
+    });
 }
 
 void MainWindow::addDownload() {
