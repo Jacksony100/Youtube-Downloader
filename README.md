@@ -1,46 +1,89 @@
-# Video Downloader Pro 4
+<div align="center">
 
-Нативное desktop-приложение на **C++20 + Qt 6 Widgets** для загрузки видео и аудио через внешний `yt-dlp`.
+# Video Downloader Pro
 
-Python не требуется ни пользователю, ни приложению во время работы. Сборка выполняется CMake/Ninja, загрузки запускаются через `QProcess`.
+### Красивый и быстрый загрузчик видео и музыки для Windows и macOS
 
-## Возможности
+[![Release](https://img.shields.io/github/v/release/Jacksony100/Youtube-Downloader?style=for-the-badge&color=7658ff)](https://github.com/Jacksony100/Youtube-Downloader/releases/latest)
+[![Windows](https://img.shields.io/github/actions/workflow/status/Jacksony100/Youtube-Downloader/build-windows-x64.yml?style=for-the-badge&logo=windows11&logoColor=white&label=Windows&color=38d98c)](https://github.com/Jacksony100/Youtube-Downloader/actions/workflows/build-windows-x64.yml)
+[![macOS](https://img.shields.io/github/actions/workflow/status/Jacksony100/Youtube-Downloader/build-macos.yml?style=for-the-badge&logo=apple&logoColor=white&label=macOS&color=38d98c)](https://github.com/Jacksony100/Youtube-Downloader/actions/workflows/build-macos.yml)
+[![C++20](https://img.shields.io/badge/C%2B%2B-20-00599C?style=for-the-badge&logo=cplusplus)](https://isocpp.org/)
+[![Qt 6](https://img.shields.io/badge/Qt-6-41CD52?style=for-the-badge&logo=qt&logoColor=white)](https://www.qt.io/)
 
-- Очередь с 1–5 параллельными загрузками.
-- Форматы: лучшее качество, 1080p, 720p, 480p и MP3.
-- Проверка ссылки и чтение метаданных перед загрузкой.
-- Нативные настройки и JSON-история загрузок.
-- Управляемый runtime в `%LOCALAPPDATA%\VideoDownloaderPro\runtime`.
-- Отдельное обновление `yt-dlp`, Deno и ffmpeg.
-- Явная передача Deno через `--js-runtimes` для полной поддержки YouTube.
-- Windows x64 и macOS release workflows.
-- Windows-установщик Inno Setup с ярлыками и штатным удалением программы.
+Вставьте ссылку, выберите качество — всё остальное приложение сделает само.
 
-## Runtime
+[**Скачать последнюю версию**](https://github.com/Jacksony100/Youtube-Downloader/releases/latest)
+
+</div>
+
+![Главное окно Video Downloader Pro](assets/screenshots/downloads.png)
+
+## Почему Video Downloader Pro
+
+| | Возможность | Что это даёт |
+|---|---|---|
+| 🎬 | **Видео и музыка** | Лучшее качество, 1080p, 720p, 480p и MP3 |
+| ⚡ | **Очередь загрузок** | До пяти параллельных задач с прогрессом и скоростью |
+| 🔎 | **Проверка ссылки** | Название, автор и длительность до начала загрузки |
+| 🧰 | **Всё уже внутри** | `yt-dlp`, Deno и FFmpeg входят в Windows-релиз |
+| 🧠 | **Современный YouTube runtime** | Deno явно подключается через `--js-runtimes` |
+| 🗂️ | **История и настройки** | Поиск по загрузкам, выбор папки и автооткрытие файла |
+| 🚀 | **Без Python** | Интерфейс и управление процессами написаны на C++20/Qt 6 |
+
+## Установка на Windows
+
+1. Откройте [последний релиз](https://github.com/Jacksony100/Youtube-Downloader/releases/latest).
+2. Скачайте **`VideoDownloaderPro-Setup-4.0.0.exe`**.
+3. Запустите установщик и следуйте подсказкам.
+
+Установщик добавляет приложение в меню «Пуск», по желанию создаёт ярлык на рабочем столе и поддерживает штатное удаление через настройки Windows. Права администратора не требуются.
+
+> Нужна переносная версия? Скачайте `VideoDownloaderPro-win-x64.zip`, распакуйте архив и запустите `VideoDownloaderPro.exe`.
+
+## Интерфейс
+
+![Управление встроенными инструментами](assets/screenshots/tools.png)
+
+<div align="center"><b>Обновление yt-dlp, Deno и FFmpeg прямо из приложения</b></div>
+
+## Как это работает
 
 ```text
-VideoDownloaderPro/
-  runtime/
-    yt-dlp/yt-dlp.exe
-    deno/deno.exe
-    ffmpeg/bin/ffmpeg.exe
-    ffmpeg/bin/ffprobe.exe
-  data/
-    settings.ini
-    history.json
-  runtime/manifest.json
+Ссылка
+  └─► Проверка метаданных
+        └─► Очередь задач
+              ├─► yt-dlp + Deno
+              ├─► FFmpeg
+              └─► Готовый файл + запись в историю
 ```
 
-Релизный архив уже содержит fallback-копии всех инструментов. При первом запуске приложение копирует их в пользовательский runtime. Обновления устанавливаются отдельно от основного приложения.
+Приложение хранит обновляемые инструменты отдельно от установленной программы:
 
-## Сборка из исходников
+```text
+%LOCALAPPDATA%\VideoDownloaderPro\
+├── runtime\
+│   ├── yt-dlp\yt-dlp.exe
+│   ├── deno\deno.exe
+│   └── ffmpeg\bin\
+├── data\
+│   ├── settings.ini
+│   └── history.json
+└── logs\
+```
 
-Требования:
+Так `yt-dlp`, Deno и FFmpeg можно обновлять прямо из приложения без переустановки основной программы.
+
+<details>
+<summary><b>Сборка из исходников</b></summary>
+
+### Требования
 
 - CMake 3.21+
 - Ninja
-- C++20 compiler: MSVC 2022, AppleClang или GCC
-- Qt 6.6+ (`Core`, `Widgets`, `Network`, `Test`)
+- компилятор с поддержкой C++20
+- Qt 6.6+: `Core`, `Widgets`, `Network`, `Test`
+
+### CMake
 
 ```powershell
 cmake -S . -B build-cpp -G Ninja `
@@ -51,44 +94,46 @@ cmake --build build-cpp
 ctest --test-dir build-cpp --output-on-failure
 ```
 
-## Windows-релиз
+### Windows-пакет и установщик
 
 ```powershell
-./scripts/build_release_windows.ps1 -QtDir "$env:Qt6_DIR"
+./scripts/build_release_windows.ps1 `
+  -QtDir "$env:Qt6_DIR" `
+  -InnoSetupCompiler "$env:ISCC_PATH"
 ```
 
-Результат: `dist/VideoDownloaderPro-win-x64.zip`.
+Результаты:
 
-Скрипт скачивает и проверяет `yt-dlp` и Deno, подготавливает ffmpeg, собирает C++ приложение, запускает CTest и выполняет `windeployqt`.
+- `dist/VideoDownloaderPro-win-x64.zip`
+- `dist/VideoDownloaderPro-Setup-4.0.0.exe`
 
-## macOS-релиз
+### macOS
 
 ```bash
 Qt6_DIR=/path/to/Qt/lib/cmake/Qt6 ./scripts/build_release.sh
 ```
 
-Результат: `dist/VideoDownloaderPro-macOS.zip`.
+</details>
 
-## Структура
+## Структура проекта
 
 ```text
-src/
-  main.cpp              # точка входа
-  main_window.*         # Qt Widgets UI, очередь и процессы
-  core.*                # форматы, пути, ошибки и managed toolchain
-tests_cpp/
-  test_core.cpp         # Qt Test / CTest
-scripts/
-  build_release_windows.ps1
-  build_release.sh
+src/                 C++/Qt приложение
+tests_cpp/           Qt Test / CTest
+ui/styles/           фирменная QSS-тема
+installer/           Inno Setup
+scripts/             release-сборки Windows и macOS
+.github/workflows/   непрерывная сборка и проверка пакетов
 ```
 
 ## Важно
 
-- Поддержка платформ зависит от актуальности `yt-dlp`.
-- Deno 2.3+ требуется для полноценной поддержки YouTube.
-- Приложение не обходит DRM, платные, возрастные, аккаунтные или региональные ограничения.
+- Работа конкретной площадки зависит от актуальности `yt-dlp`.
+- Приложение не обходит DRM, платный доступ, авторизацию и региональные ограничения.
+- Пользователь самостоятельно отвечает за соблюдение авторских прав и правил платформ.
 
-## Disclaimer
+<div align="center">
 
-This software is provided "as is". You are responsible for compliance with local laws, copyright rules and platform terms.
+Сделано с вниманием к деталям • **Video Downloader Pro 4**
+
+</div>
