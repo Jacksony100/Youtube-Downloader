@@ -26,6 +26,7 @@ qt_add_resources(VideoDownloaderPro app_resources
 
 target_link_libraries(VideoDownloaderPro PRIVATE Qt6::Core Qt6::Widgets Qt6::Network)
 target_include_directories(VideoDownloaderPro PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/src)
+set_target_properties(VideoDownloaderPro PROPERTIES QT_NO_ENTRYPOINT ON)
 target_compile_definitions(VideoDownloaderPro PRIVATE
     VDP_VERSION="${PROJECT_VERSION}"
     VDP_REPOSITORY="https://github.com/Jacksony100/Youtube-Downloader"
