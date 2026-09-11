@@ -107,7 +107,7 @@ private slots:
     void streamedTransferKeepsEventLoopResponsive() {
         QTemporaryDir temp; ControlledNetwork network;
         const QByteArray data(512 * 1024, 'x');
-        network.responses.insert("/tool", {data});
+        network.responses.insert("/tool", {data, 16 * 1024, 3});
         const auto digest = QCryptographicHash::hash(data, QCryptographicHash::Sha256).toHex();
         network.responses.insert("/sums", {QByteArray(64, 'a') + "  wrong.exe\n" + digest + " *yt-dlp.exe\n"});
         std::atomic_bool probeOnWorker = false;
@@ -121,8 +121,10 @@ private slots:
         QTimer heartbeat; connect(&heartbeat, &QTimer::timeout, this, [&] { ++heartbeats; }); heartbeat.start(1);
         QVERIFY(updater.start(spec(data, true)));
         QVERIFY(!updater.start(spec(data)));
-        QTRY_COMPARE_WITH_TIMEOUT(complete.count(), 1, 5000);
-        QCOMPARE(failure.count(), 0); QVERIFY(heartbeats > 10); QVERIFY(progress.count() > 10); QVERIFY(probeOnWorker.load());
+        QTRY_VERIFY_WITH_TIMEOUT(complete.count() + failure.count() == 1, 5000);
+        if (!failure.isEmpty())
+            QFAIL(qPrintable(failure.at(0).at(1).toString()));
+        QCOMPARE(complete.count(), 1); QVERIFY(heartbeats > 10); QVERIFY(progress.count() > 10); QVERIFY(probeOnWorker.load());
         ToolchainManager manager(paths(temp));
         QCOMPARE(read(manager.ytdlpPath()), data);
         QVERIFY(manager.status().ytdlp.verified);
