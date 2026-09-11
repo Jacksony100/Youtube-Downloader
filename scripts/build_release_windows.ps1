@@ -1,185 +1,105 @@
 param(
     [string]$QtDir = $env:Qt6_DIR,
     [string]$InnoSetupCompiler = $env:ISCC_PATH,
+    [string]$BuildDir = 'build-cpp/pro5-package',
+    [string]$Python = 'python',
     [switch]$SkipToolDownloads
 )
 
-$ErrorActionPreference = "Stop"
+$ErrorActionPreference = 'Stop'
 $PSNativeCommandUseErrorActionPreference = $true
-$root = Resolve-Path (Join-Path $PSScriptRoot "..")
-Set-Location $root
-$userAgent = "VideoDownloaderPro/4.0.2 (+https://github.com/Jacksony100/Youtube-Downloader)"
-$toolchain = Join-Path $root "build_assets\toolchain"
-
-function Download-Checked([string]$Url, [string]$Output) {
-    Write-Host "[INFO] Downloading $Url"
-    Invoke-WebRequest -Uri $Url -OutFile $Output -Headers @{"User-Agent" = $userAgent} -TimeoutSec 240
-    if (-not (Test-Path -LiteralPath $Output) -or (Get-Item -LiteralPath $Output).Length -eq 0) {
-        throw "Downloaded file is missing or empty: $Output"
-    }
+$root = (Resolve-Path (Join-Path $PSScriptRoot '..')).Path
+Set-Location -LiteralPath $root
+function Run-Checked([string]$Program, [string[]]$Arguments) {
+    & $Program @Arguments
+    if ($LASTEXITCODE -ne 0) { throw "$Program failed with exit code $LASTEXITCODE" }
 }
-
-function Get-PublishedHash([string]$ChecksumFile, [string]$FileName) {
-    $text = Get-Content -LiteralPath $ChecksumFile -Raw
-    $powerShellHash = [regex]::Match($text, '(?im)^Hash\s*:\s*([0-9a-f]{64})\s*$')
-    if ($powerShellHash.Success) { return $powerShellHash.Groups[1].Value }
-    foreach ($line in $text -split "`r?`n") {
-        if ($line -match '^([0-9a-fA-F]{64})\s+\*?(.+)$' -and $Matches[2].EndsWith($FileName)) { return $Matches[1] }
-    }
-    throw "Checksum not found for $FileName"
+function Workspace-Child([string]$Parent, [string]$Path) {
+    $parentPath = [IO.Path]::GetFullPath($Parent).TrimEnd('\','/')
+    $childPath = [IO.Path]::GetFullPath($Path)
+    if (-not $childPath.StartsWith($parentPath + [IO.Path]::DirectorySeparatorChar, [StringComparison]::OrdinalIgnoreCase)) { throw "Path escapes workspace: $childPath" }
+    return $childPath
 }
-
-function Assert-Checksum([string]$File, [string]$ChecksumUrl, [string]$FileName) {
-    $checksumFile = "$File.sha256sum"
-    Download-Checked $ChecksumUrl $checksumFile
-    $expected = Get-PublishedHash $checksumFile $FileName
-    $actual = (Get-FileHash -LiteralPath $File -Algorithm SHA256).Hash
-    if ($actual -ne $expected) { throw "SHA256 mismatch for $FileName" }
-    Write-Host "[OK] SHA256 verified: $FileName"
+foreach ($command in @('cmake','ninja','ctest',$Python)) {
+    if (-not (Get-Command $command -ErrorAction SilentlyContinue)) { throw "Build dependency missing: $command" }
 }
-
-function Prepare-Toolchain {
-    New-Item -ItemType Directory -Force $toolchain | Out-Null
-    $ytdlp = Join-Path $toolchain "yt-dlp.exe"
-    $deno = Join-Path $toolchain "deno.exe"
-    $ffmpeg = Join-Path $toolchain "ffmpeg.exe"
-    $ffprobe = Join-Path $toolchain "ffprobe.exe"
-
-    if (-not $SkipToolDownloads -or -not (Test-Path -LiteralPath $ytdlp)) {
-        $sums = Join-Path $root "build_assets\SHA2-256SUMS"
-        Download-Checked "https://github.com/yt-dlp/yt-dlp/releases/latest/download/yt-dlp.exe" $ytdlp
-        Download-Checked "https://github.com/yt-dlp/yt-dlp/releases/latest/download/SHA2-256SUMS" $sums
-        $expected = Get-PublishedHash $sums "yt-dlp.exe"
-        if ((Get-FileHash -LiteralPath $ytdlp -Algorithm SHA256).Hash -ne $expected) { throw "yt-dlp checksum mismatch" }
-    }
-
-    if (-not $SkipToolDownloads -or -not (Test-Path -LiteralPath $deno)) {
-        $denoName = "deno-x86_64-pc-windows-msvc.zip"
-        $denoUrl = "https://github.com/denoland/deno/releases/latest/download/$denoName"
-        $archive = Join-Path $root "build_assets\$denoName"
-        $extract = Join-Path $root "build_assets\deno_extract"
-        Download-Checked $denoUrl $archive
-        Assert-Checksum $archive "$denoUrl.sha256sum" $denoName
-        if (Test-Path -LiteralPath $extract) { Remove-Item -LiteralPath $extract -Recurse -Force }
-        Expand-Archive -LiteralPath $archive -DestinationPath $extract -Force
-        Copy-Item -LiteralPath (Join-Path $extract "deno.exe") -Destination $deno -Force
-    }
-
-    if (-not $SkipToolDownloads -or -not ((Test-Path -LiteralPath $ffmpeg) -and (Test-Path -LiteralPath $ffprobe))) {
-        $archive = Join-Path $root "build_assets\ffmpeg-release-essentials.zip"
-        $extract = Join-Path $root "build_assets\ffmpeg_extract"
-        Download-Checked "https://www.gyan.dev/ffmpeg/builds/ffmpeg-release-essentials.zip" $archive
-        if (Test-Path -LiteralPath $extract) { Remove-Item -LiteralPath $extract -Recurse -Force }
-        Expand-Archive -LiteralPath $archive -DestinationPath $extract -Force
-        $ffmpegSource = Get-ChildItem -LiteralPath $extract -Recurse -Filter "ffmpeg.exe" | Select-Object -First 1
-        $ffprobeSource = Get-ChildItem -LiteralPath $extract -Recurse -Filter "ffprobe.exe" | Select-Object -First 1
-        if (-not $ffmpegSource -or -not $ffprobeSource) { throw "ffmpeg tools not found in archive" }
-        Copy-Item -LiteralPath $ffmpegSource.FullName -Destination $ffmpeg -Force
-        Copy-Item -LiteralPath $ffprobeSource.FullName -Destination $ffprobe -Force
-    }
-}
-
-if (-not (Get-Command cmake -ErrorAction SilentlyContinue)) { throw "CMake not found" }
-if (-not (Get-Command ninja -ErrorAction SilentlyContinue)) { throw "Ninja not found" }
-if (-not $QtDir) { throw "Qt6_DIR is not set" }
-$qtBin = Resolve-Path (Join-Path $QtDir "..\..\..\bin")
-$windeployqt = Join-Path $qtBin "windeployqt.exe"
-if (-not (Test-Path -LiteralPath $windeployqt)) { throw "windeployqt not found: $windeployqt" }
-
-Prepare-Toolchain
-cmake -S . -B build-cpp -G Ninja -DCMAKE_BUILD_TYPE=Release -DCMAKE_PREFIX_PATH="$QtDir" -DBUILD_TESTING=ON
-cmake --build build-cpp --config Release
-ctest --test-dir build-cpp --output-on-failure
-
-$package = Join-Path $root "dist\VideoDownloaderPro-win-x64"
-if (Test-Path -LiteralPath $package) { Remove-Item -LiteralPath $package -Recurse -Force }
-New-Item -ItemType Directory -Force (Join-Path $package "toolchain") | Out-Null
-Copy-Item -LiteralPath "build-cpp\VideoDownloaderPro.exe" -Destination $package
-Copy-Item -Path "build_assets\toolchain\*" -Destination (Join-Path $package "toolchain") -Force
-Copy-Item -LiteralPath "README.md", "CHANGELOG.md" -Destination $package
-& $windeployqt --release --no-translations --compiler-runtime (Join-Path $package "VideoDownloaderPro.exe")
-
-$smokeData = Join-Path $root "build-cpp\smoke-localappdata"
-New-Item -ItemType Directory -Force $smokeData | Out-Null
-$previousLocalAppData = $env:LOCALAPPDATA
-$env:LOCALAPPDATA = $smokeData
-$env:VDP_SMOKE_TEST = "1"
-try {
-    $smokeProcess = Start-Process `
-        -FilePath (Join-Path $package "VideoDownloaderPro.exe") `
-        -WorkingDirectory $package `
-        -WindowStyle Hidden `
-        -Wait `
-        -PassThru
-    if ($smokeProcess.ExitCode -ne 0) {
-        throw "Packaged app smoke test failed with exit code $($smokeProcess.ExitCode)"
-    }
-} finally {
-    $env:LOCALAPPDATA = $previousLocalAppData
-    Remove-Item Env:\VDP_SMOKE_TEST -ErrorAction SilentlyContinue
-}
-$managedDeno = Join-Path $smokeData "VideoDownloaderPro\runtime\deno\deno.exe"
-if (-not (Test-Path -LiteralPath $managedDeno)) { throw "Packaged app smoke test did not provision Deno" }
-Write-Host "[OK] Packaged executable smoke test passed"
-
-$zip = Join-Path $root "dist\VideoDownloaderPro-win-x64.zip"
-if (Test-Path -LiteralPath $zip) { Remove-Item -LiteralPath $zip -Force }
-Compress-Archive -Path (Join-Path $package "*") -DestinationPath $zip -Force
-Write-Host "[OK] Native C++ package: $zip"
-
+if (-not $QtDir) { throw 'Set Qt6_DIR or pass -QtDir (Qt installation root or lib/cmake/Qt6).' }
+$qtRoot = (Resolve-Path -LiteralPath $QtDir).Path
+if (-not (Test-Path -LiteralPath (Join-Path $qtRoot 'bin/windeployqt.exe'))) { $qtRoot = [IO.Path]::GetFullPath((Join-Path $qtRoot '../../..')) }
+$windeployqt = Join-Path $qtRoot 'bin/windeployqt.exe'
+if (-not (Test-Path -LiteralPath $windeployqt)) { throw "windeployqt missing: $windeployqt" }
+$env:PATH = (Join-Path $qtRoot 'bin') + ';' + $env:PATH
 if (-not $InnoSetupCompiler) {
-    $isccCommand = Get-Command "ISCC.exe" -ErrorAction SilentlyContinue
-    if ($isccCommand) {
-        $InnoSetupCompiler = $isccCommand.Source
-    } else {
-        $knownIscc = Join-Path ${env:ProgramFiles(x86)} "Inno Setup 6\ISCC.exe"
-        if (Test-Path -LiteralPath $knownIscc) { $InnoSetupCompiler = $knownIscc }
+    $iscc = Get-Command ISCC.exe -ErrorAction SilentlyContinue
+    if ($iscc) { $InnoSetupCompiler = $iscc.Source }
+    elseif (Test-Path -LiteralPath "${env:ProgramFiles(x86)}/Inno Setup 6/ISCC.exe") { $InnoSetupCompiler = "${env:ProgramFiles(x86)}/Inno Setup 6/ISCC.exe" }
+}
+if (-not $InnoSetupCompiler -or -not (Test-Path -LiteralPath $InnoSetupCompiler)) { throw 'Inno Setup compiler missing. Pass -InnoSetupCompiler or set ISCC_PATH.' }
+$version = (& $Python scripts/release_tools.py version).Trim()
+if ($LASTEXITCODE -ne 0 -or $version -notmatch '^\d+\.\d+\.\d+$') { throw 'Cannot read canonical CMake version' }
+$build = Workspace-Child (Join-Path $root 'build-cpp') ([IO.Path]::GetFullPath((Join-Path $root $BuildDir)))
+$toolchain = Join-Path $root 'build_assets/pro5-toolchain-windows-x64'
+Run-Checked $Python @('-m','unittest','discover','-s','scripts','-p','test_release_tools.py','-v')
+Run-Checked $Python @('scripts/release_tools.py','validate-lock')
+$toolArgs = @('scripts/release_tools.py','prepare-tools','windows-x64',$toolchain)
+if ($SkipToolDownloads) { $toolArgs += '--reuse-verified' }
+Run-Checked $Python $toolArgs
+Run-Checked 'cmake' @('-S',$root,'-B',$build,'-G','Ninja','-DCMAKE_BUILD_TYPE=Release',"-DCMAKE_PREFIX_PATH=$qtRoot",'-DBUILD_TESTING=ON')
+Run-Checked 'cmake' @('--build',$build,'--config','Release','--clean-first')
+Run-Checked 'ctest' @('--test-dir',$build,'--output-on-failure')
+$runId = [Guid]::NewGuid().ToString('N')
+Run-Checked $Python @('scripts/release_tools.py','engine-smoke',$toolchain,(Join-Path $build 'engine_smoke_arguments.exe'),(Join-Path $build "engine-smoke-$runId"))
+$staging = Join-Path $root "dist/staging-$runId"
+$package = Join-Path $staging "VideoDownloaderPro-$version-win-x64"
+New-Item -ItemType Directory -Path (Join-Path $package 'toolchain') -Force | Out-Null
+Copy-Item -LiteralPath (Join-Path $build 'VideoDownloaderPro.exe') -Destination $package
+Copy-Item -Path (Join-Path $toolchain '*') -Destination (Join-Path $package 'toolchain') -Recurse
+Copy-Item -LiteralPath 'README.md','CHANGELOG.md','THIRD_PARTY_NOTICES.md' -Destination $package
+Copy-Item -LiteralPath 'runtime/toolchain-lock.json' -Destination (Join-Path $package 'toolchain')
+if (Test-Path -LiteralPath 'licenses') { Copy-Item -LiteralPath 'licenses' -Destination $package -Recurse }
+if (Test-Path -LiteralPath (Join-Path $qtRoot 'sbom')) { Copy-Item -LiteralPath (Join-Path $qtRoot 'sbom') -Destination (Join-Path $package 'licenses/qt-sbom') -Recurse }
+Run-Checked $windeployqt @('--release','--no-translations','--compiler-runtime',(Join-Path $package 'VideoDownloaderPro.exe'))
+# windeployqt can copy only the redistributable installer for MSVC. App-local CRT
+# DLLs make the portable package and per-user installer work without elevation.
+if (Test-Path -LiteralPath (Join-Path $package 'vc_redist.x64.exe')) {
+    if (-not $env:VCToolsRedistDir) { throw 'MSVC packaging requires VCToolsRedistDir; run in an x64 Visual Studio developer environment.' }
+    $crtDirectories = @(Get-ChildItem -LiteralPath (Join-Path $env:VCToolsRedistDir 'x64') -Directory -Filter 'Microsoft.VC*.CRT')
+    if ($crtDirectories.Count -ne 1) { throw 'Cannot select the exact x64 MSVC CRT redistribution directory.' }
+    Copy-Item -Path (Join-Path $crtDirectories[0].FullName '*.dll') -Destination $package
+    foreach ($crtDll in @('msvcp140.dll','vcruntime140.dll','vcruntime140_1.dll')) {
+        if (-not (Test-Path -LiteralPath (Join-Path $package $crtDll))) { throw "Missing app-local CRT: $crtDll" }
     }
 }
-if (-not $InnoSetupCompiler -or -not (Test-Path -LiteralPath $InnoSetupCompiler)) {
-    throw "Inno Setup 6 compiler not found. Set ISCC_PATH or pass -InnoSetupCompiler."
+
+# Signing material is supplied by the caller; passwords are never printed.
+function Sign-Artifact([string]$File) {
+    if (-not $env:VDP_SIGN_CERT_PATH) { return }
+    if (-not $env:VDP_SIGN_CERT_PASSWORD) { throw 'Signing certificate password is missing' }
+    $signtool = Get-Command signtool.exe -ErrorAction SilentlyContinue
+    if (-not $signtool) { throw 'signtool is required when signing is configured' }
+    & $signtool.Source sign /fd SHA256 /tr https://timestamp.digicert.com /td SHA256 /f $env:VDP_SIGN_CERT_PATH /p $env:VDP_SIGN_CERT_PASSWORD $File
+    if ($LASTEXITCODE -ne 0) { throw 'Authenticode signing failed' }
+    if ((Get-AuthenticodeSignature -LiteralPath $File).Status -ne 'Valid') { throw 'Authenticode validation failed' }
 }
+Sign-Artifact (Join-Path $package 'VideoDownloaderPro.exe')
+Run-Checked $Python @('scripts/release_tools.py','smoke',(Join-Path $package 'VideoDownloaderPro.exe'),(Join-Path $build "portable-smoke-$runId"))
+$zip = Join-Path $root "dist/VideoDownloaderPro-$version-win-x64.zip"
+Compress-Archive -Path (Join-Path $package '*') -DestinationPath (Join-Path $staging 'portable.zip') -CompressionLevel Optimal
+Copy-Item -LiteralPath (Join-Path $staging 'portable.zip') -Destination $zip -Force
+Run-Checked $InnoSetupCompiler @("/DAppVersion=$version","/DPackageDir=$package","/DOutputDir=$staging",(Join-Path $root 'installer/VideoDownloaderPro.iss'))
+$installer = Join-Path $root "dist/VideoDownloaderPro-Setup-$version.exe"
+Copy-Item -LiteralPath (Join-Path $staging "VideoDownloaderPro-Setup-$version.exe") -Destination $installer -Force
+Sign-Artifact $installer
 
-$installerScript = Join-Path $root "installer\VideoDownloaderPro.iss"
-& $InnoSetupCompiler `
-    "/DAppVersion=4.0.2" `
-    "/DPackageDir=$package" `
-    "/DOutputDir=$(Join-Path $root 'dist')" `
-    $installerScript
-
-$installer = Join-Path $root "dist\VideoDownloaderPro-Setup-4.0.2.exe"
-if (-not (Test-Path -LiteralPath $installer)) { throw "Installer was not created: $installer" }
-
-$installTarget = Join-Path $root "build-cpp\installer-smoke\app"
-if (Test-Path -LiteralPath $installTarget) { Remove-Item -LiteralPath $installTarget -Recurse -Force }
-$setupProcess = Start-Process `
-    -FilePath $installer `
-    -ArgumentList "/VERYSILENT", "/SUPPRESSMSGBOXES", "/NORESTART", "/SP-", "/DIR=`"$installTarget`"" `
-    -WindowStyle Hidden `
-    -Wait `
-    -PassThru
-if ($setupProcess.ExitCode -ne 0) { throw "Installer smoke test failed with exit code $($setupProcess.ExitCode)" }
-
-$installedExe = Join-Path $installTarget "VideoDownloaderPro.exe"
-if (-not (Test-Path -LiteralPath $installedExe)) { throw "Installed executable not found: $installedExe" }
-
-$installerSmokeData = Join-Path $root "build-cpp\installer-smoke\localappdata"
-New-Item -ItemType Directory -Force $installerSmokeData | Out-Null
-$previousLocalAppData = $env:LOCALAPPDATA
-$env:LOCALAPPDATA = $installerSmokeData
-$env:VDP_SMOKE_TEST = "1"
-try {
-    $installedProcess = Start-Process `
-        -FilePath $installedExe `
-        -WorkingDirectory $installTarget `
-        -WindowStyle Hidden `
-        -Wait `
-        -PassThru
-    if ($installedProcess.ExitCode -ne 0) {
-        throw "Installed app smoke test failed with exit code $($installedProcess.ExitCode)"
-    }
-} finally {
-    $env:LOCALAPPDATA = $previousLocalAppData
-    Remove-Item Env:\VDP_SMOKE_TEST -ErrorAction SilentlyContinue
-}
-Write-Host "[OK] Windows installer smoke test passed: $installer"
+# Smoke mode avoids user registration and shortcuts and uses a fresh directory.
+$installTarget = Join-Path $build "installer-smoke-$runId/app"
+New-Item -ItemType Directory -Path $installTarget -Force | Out-Null
+$setupProcess = Start-Process -FilePath $installer -ArgumentList '/VERYSILENT','/SUPPRESSMSGBOXES','/NORESTART','/SP-','/SMOKETEST=1',("/DIR=`"$installTarget`"") -WindowStyle Hidden -PassThru
+if (-not $setupProcess.WaitForExit(120000)) { $setupProcess.Kill(); throw 'Installer smoke timed out after 120 seconds' }
+$setupProcess.Refresh()
+if ($setupProcess.ExitCode -ne 0) { throw "Installer failed: $($setupProcess.ExitCode)" }
+Run-Checked $Python @('scripts/release_tools.py','smoke',(Join-Path $installTarget 'VideoDownloaderPro.exe'),(Join-Path $build "installed-smoke-$runId"))
+$sums = & $Python scripts/release_tools.py checksums $zip $installer
+if ($LASTEXITCODE -ne 0) { throw 'Distributable checksum generation failed' }
+[IO.File]::WriteAllLines((Join-Path $root 'dist/SHA256SUMS-windows.txt'), [string[]]$sums, [Text.UTF8Encoding]::new($false))
+Write-Host "[OK] Windows package and installer passed smoke: $version"

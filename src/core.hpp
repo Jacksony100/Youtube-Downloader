@@ -16,6 +16,8 @@ struct FormatPreset {
     QString selector;
     bool extractAudio = false;
     QString extension = QStringLiteral("mp4");
+    QString audioQuality = QStringLiteral("192K");
+    bool originalAudio = false;
 };
 
 const QVector<FormatPreset>& formatPresets();
@@ -49,7 +51,9 @@ struct ToolInfo {
     QString path;
     QString version;
     bool exists = false;
-    bool verified = true;
+    bool verified = false;
+    QString sha256;
+    QString source;
 };
 
 struct ToolchainStatus {
@@ -64,14 +68,11 @@ struct ToolchainStatus {
 
 class ToolchainManager {
 public:
-    explicit ToolchainManager(AppPaths paths = AppPaths::defaults());
+    explicit ToolchainManager(AppPaths paths = AppPaths::defaults(), QString bundleDirectory = {});
 
     ToolchainStatus ensureRuntime();
     ToolchainStatus status(bool refreshVersions = false) const;
     ToolchainStatus repairRuntime();
-    bool updateYtdlp(QString* error = nullptr);
-    bool updateDeno(QString* error = nullptr);
-    bool updateFfmpeg(QString* error = nullptr);
 
     [[nodiscard]] QString ytdlpPath() const;
     [[nodiscard]] QString denoPath() const;
@@ -79,21 +80,17 @@ public:
     [[nodiscard]] QString ffprobePath() const;
     [[nodiscard]] QString ffmpegDirectory() const;
     [[nodiscard]] const AppPaths& paths() const { return paths_; }
+    bool recordVerifiedTools(const QVector<ToolInfo>& tools, QString* error = nullptr) const;
 
 private:
     AppPaths paths_;
+    QString bundleDirectory_;
 
     QString executableName(const QString& stem) const;
     QString bundledTool(const QString& name) const;
     bool copyBundledOrSystem(const QString& stem, const QString& target) const;
     QString toolVersion(const QString& path, const QStringList& args) const;
-    bool downloadFile(const QString& url, const QString& target, QString* error) const;
-    QString downloadText(const QString& url, QString* error) const;
-    bool verifyPublishedSha256(const QString& file, const QString& checksumUrl, QString* error) const;
-    bool installFile(const QString& source, const QString& target, QString* error) const;
-    bool extractArchive(const QString& archive, const QString& targetDir, QString* error) const;
-    QString findRecursively(const QString& root, const QString& fileName) const;
-    void writeManifest(const ToolchainStatus& status) const;
+    bool writeManifest(const ToolchainStatus& status, QString* error = nullptr) const;
 };
 
 } // namespace vdp

@@ -1,139 +1,94 @@
-<div align="center">
+# Video Downloader Pro 5
 
-# Video Downloader Pro
+Нативный загрузчик видео и аудио на C++20 / Qt 6 Widgets. Движок — yt-dlp с явным подключением Deno; объединение потоков и обработка аудио выполняются FFmpeg.
 
-### Красивый и быстрый загрузчик видео и музыки для Windows и macOS
+## Возможности 5.0
 
-[![Release](https://img.shields.io/github/v/release/Jacksony100/Youtube-Downloader?style=for-the-badge&color=7658ff)](https://github.com/Jacksony100/Youtube-Downloader/releases/latest)
-[![Windows](https://img.shields.io/github/actions/workflow/status/Jacksony100/Youtube-Downloader/build-windows-x64.yml?style=for-the-badge&logo=windows11&logoColor=white&label=Windows&color=38d98c)](https://github.com/Jacksony100/Youtube-Downloader/actions/workflows/build-windows-x64.yml)
-[![macOS](https://img.shields.io/github/actions/workflow/status/Jacksony100/Youtube-Downloader/build-macos.yml?style=for-the-badge&logo=apple&logoColor=white&label=macOS&color=38d98c)](https://github.com/Jacksony100/Youtube-Downloader/actions/workflows/build-macos.yml)
-[![C++20](https://img.shields.io/badge/C%2B%2B-20-00599C?style=for-the-badge&logo=cplusplus)](https://isocpp.org/)
-[![Qt 6](https://img.shields.io/badge/Qt-6-41CD52?style=for-the-badge&logo=qt&logoColor=white)](https://www.qt.io/)
+- Простые пресеты: Лучшее, 1080p, 720p, 480p и MP3.
+- Расширенный выбор после проверки ссылки: разрешение, кодек, частота кадров, оригинальное аудио и MP3 с целевым битрейтом 192/320 кбит/с. Оценка размера показывается при наличии данных; размер отдельного видеопотока подписан отдельно.
+- Очередь с ограничением параллельности, настоящим прогрессом и этапом обработки. Отмена остаётся отменой; неудачные и отменённые задачи можно повторять.
+- Незавершённая очередь сохраняется атомарно и восстанавливается после перезапуска. Закрытие приложения не удаляет скачанные файлы.
+- Метаданные: до трёх процессов одновременно, объединение одинаковых запросов и кеш на 128 ссылок. Ошибка проверки не запрещает загрузку с простым пресетом.
+- Завершённые карточки удаляются из интерфейса и памяти.
+- История до 500 записей: поиск, открытие файла/папки, повтор, копирование ссылки и удаление записи. Интерфейс показывает время **MSK (UTC+3)**, хранение — UTC.
+- Фоновое обновление runtime с прогрессом, отменой сетевой стадии, таймаутом, SHA256 и откатом. FFmpeg и ffprobe заменяются вместе.
+- Диагностика с удалением секретов; журналы ограничены 2 МБ на файл и одной резервной копией.
 
-Вставьте ссылку, выберите качество — всё остальное приложение сделает само.
+## Использование
 
-[**Скачать последнюю версию**](https://github.com/Jacksony100/Youtube-Downloader/releases/latest)
+Вставьте HTTP(S)-ссылку, выберите пресет и нажмите «Добавить в очередь». «Проверить» показывает название, автора, длительность и форматы. Расширенный выбор необязателен.
 
-</div>
+`Ctrl+L` — ссылка, `Ctrl+I` — проверка, `Ctrl+D` — добавить, `Ctrl+O` — папка загрузок, `Ctrl+Q` — выход.
 
-![Главное окно Video Downloader Pro](assets/screenshots/downloads.png)
+«Инструменты» показывает версии, пути и целостность всех четырёх компонентов. Во время их использования конфликтующие обновления недоступны. Сетевую загрузку обновления можно отменить; стадия установки должна завершиться для сохранения целостности runtime.
 
-## Почему Video Downloader Pro
+## Установка и пакеты
 
-| | Возможность | Что это даёт |
-|---|---|---|
-| 🎬 | **Видео и музыка** | Лучшее качество, 1080p, 720p, 480p и MP3 |
-| ⚡ | **Очередь загрузок** | До пяти параллельных задач с прогрессом и скоростью |
-| 🔎 | **Проверка ссылки** | Название, автор и длительность до начала загрузки |
-| 🧰 | **Всё уже внутри** | `yt-dlp`, Deno и FFmpeg входят в Windows-релиз |
-| 🧠 | **Современный YouTube runtime** | Deno явно подключается через `--js-runtimes` |
-| 🗂️ | **История и настройки** | Поиск по загрузкам, выбор папки и автооткрытие файла |
-| 🚀 | **Без Python** | Интерфейс и управление процессами написаны на C++20/Qt 6 |
+[Опубликованные релизы](https://github.com/Jacksony100/Youtube-Downloader/releases) доступны отдельно от этой рабочей ветки. Реализация 5.0 не означает публикацию нового релиза.
 
-## Установка на Windows
+Локальная сборка создаёт:
 
-1. Откройте [последний релиз](https://github.com/Jacksony100/Youtube-Downloader/releases/latest).
-2. Скачайте **`VideoDownloaderPro-Setup-4.0.2.exe`**.
-3. Запустите установщик и следуйте подсказкам.
+- `dist/VideoDownloaderPro-<version>-win-x64.zip` — переносная Windows-версия;
+- `dist/VideoDownloaderPro-Setup-<version>.exe` — установщик без обязательных прав администратора;
+- `dist/VideoDownloaderPro-<version>-macos-x64.zip` — macOS Intel;
+- `SHA256SUMS-windows.txt` / `SHA256SUMS-macos.txt`.
 
-Установщик добавляет приложение в меню «Пуск», по желанию создаёт ярлык на рабочем столе и поддерживает штатное удаление через настройки Windows. Права администратора не требуются.
+Qt и runtime входят в пакеты. Python для запуска приложения не нужен; стандартная библиотека Python используется только в скриптах подготовки релиза.
 
-> Нужна переносная версия? Скачайте `VideoDownloaderPro-win-x64.zip`, распакуйте архив и запустите `VideoDownloaderPro.exe`.
-
-## Интерфейс
-
-![Управление встроенными инструментами](assets/screenshots/tools.png)
-
-<div align="center"><b>Обновление yt-dlp, Deno и FFmpeg прямо из приложения</b></div>
-
-## Как это работает
+## Данные и переход с 4.x
 
 ```text
-Ссылка
-  └─► Проверка метаданных
-        └─► Очередь задач
-              ├─► yt-dlp + Deno
-              ├─► FFmpeg
-              └─► Готовый файл + запись в историю
+%LOCALAPPDATA%/VideoDownloaderPro/
+├── runtime/             yt-dlp, Deno, ffmpeg/bin, manifest.json
+├── data/settings.ini    совместимые ключи настроек
+├── data/history.json    чтение прежнего массива, запись schema 1
+├── data/queue.json      незавершённые задачи, schema 1
+├── logs/                app.log, downloads.log, runtime.log
+└── cache/               временные файлы обновлений
 ```
 
-Приложение хранит обновляемые инструменты отдельно от установленной программы:
+macOS использует `~/Library/Application Support/VideoDownloaderPro`. Тесты и smoke задают отдельный `VDP_DATA_ROOT` — корневую папку данных приложения — и не затрагивают пользовательские настройки/runtime.
 
-```text
-%LOCALAPPDATA%\VideoDownloaderPro\
-├── runtime\
-│   ├── yt-dlp\yt-dlp.exe
-│   ├── deno\deno.exe
-│   └── ffmpeg\bin\
-├── data\
-│   ├── settings.ini
-│   └── history.json
-└── logs\
-```
+Повреждённая очередь сохраняется в `.recovery-<id>.json`; приложение сообщает об ошибке и продолжает запуск. Непонятный формат истории не перезаписывается. У прежних установленных инструментов целостность может быть неизвестной; проверенный пакет или обновление добавляют подтверждённый SHA256 в manifest.
 
-Так `yt-dlp`, Deno и FFmpeg можно обновлять прямо из приложения без переустановки основной программы.
+## Сборка и проверки
 
-<details>
-<summary><b>Сборка из исходников</b></summary>
-
-### Требования
-
-- CMake 3.21+
-- Ninja
-- компилятор с поддержкой C++20
-- Qt 6.6+: `Core`, `Widgets`, `Network`, `Test`
-
-### CMake
+CMake 3.21+, Ninja, C++20-компилятор, Qt 6.6+ (Core, Widgets, Network, Test). Python 3.11+ нужен для packaging и его тестов. Локально проверяются Qt 6.8.3 / MSVC 2022 x64. Для MSVC используйте Developer PowerShell или окружение `vcvars64.bat`. Qt `bin` должен быть в `PATH` при запуске тестов.
 
 ```powershell
-cmake -S . -B build-cpp -G Ninja `
-  -DCMAKE_BUILD_TYPE=Release `
-  -DCMAKE_PREFIX_PATH="$env:Qt6_DIR" `
-  -DBUILD_TESTING=ON
-cmake --build build-cpp
-ctest --test-dir build-cpp --output-on-failure
+cmake -S . -B build-cpp/pro5 -G Ninja -DCMAKE_BUILD_TYPE=Release -DCMAKE_PREFIX_PATH="$env:Qt6_DIR" -DBUILD_TESTING=ON
+cmake --build build-cpp/pro5 --clean-first --parallel 4
+ctest --test-dir build-cpp/pro5 --output-on-failure
+python -m unittest discover -s scripts -p test_release_tools.py -v
+python scripts/release_tools.py validate-lock
 ```
 
-### Windows-пакет и установщик
+Тесты не обращаются к YouTube: используются локальные дочерние процессы, подставной HTTPS-транспорт и временные файлы; GUI проверяется через Qt Test. Packaging также проверяет настоящий yt-dlp на собственном видео с локального HTTP-сервера, извлечение MP3 через FFmpeg/ffprobe и запуск упакованного приложения с изолированными данными.
+
+Windows требует Inno Setup 6:
 
 ```powershell
-./scripts/build_release_windows.ps1 `
-  -QtDir "$env:Qt6_DIR" `
-  -InnoSetupCompiler "$env:ISCC_PATH"
+./scripts/build_release_windows.ps1 -QtDir "$env:Qt6_DIR" -InnoSetupCompiler "$env:ISCC_PATH"
 ```
 
-Результаты:
+`-SkipToolDownloads` принимает только кеш с проверяемым manifest и совпадающими SHA256. Сборка использует `build-cpp/pro5-package`; другие каталоги сборок не очищаются.
 
-- `dist/VideoDownloaderPro-win-x64.zip`
-- `dist/VideoDownloaderPro-Setup-4.0.2.exe`
-
-### macOS
+На macOS:
 
 ```bash
-Qt6_DIR=/path/to/Qt/lib/cmake/Qt6 ./scripts/build_release.sh
+QT_ROOT_DIR=/path/to/Qt/6.8.3/macos bash scripts/build_release.sh
 ```
 
-</details>
+Проверенные FFmpeg-пакеты Evermeet — Intel. На Apple Silicon для них требуется Rosetta; нативная совместимость этого runtime не заявляется. Сборку, smoke и подпись необходимо подтвердить на macOS.
 
-## Структура проекта
+## Целостность и выпуск
 
-```text
-src/                 C++/Qt приложение
-tests_cpp/           Qt Test / CTest
-ui/styles/           фирменная QSS-тема
-installer/           Inno Setup
-scripts/             release-сборки Windows и macOS
-.github/workflows/   непрерывная сборка и проверка пакетов
-```
+`runtime/toolchain-lock.json` — общий источник артефактов для приложения и packaging. yt-dlp, Deno и Windows FFmpeg проверяются по HTTPS-документам SHA256 с выбором точного имени файла. Для macOS FFmpeg/ffprobe зафиксированы реальные SHA256 архивов, проверенных по подписям поставщика. Несовпадение, отсутствие контрольной суммы или неудачный запуск отменяют установку с сохранением предыдущего runtime.
 
-## Важно
+Каноническая версия находится в CMake `project(... VERSION ...)`; `python scripts/release_tools.py version` выводит её для скриптов. PR и push в main проверяют обе платформы. Только тег `v<version>` запускает выпуск, требующий успешных Windows/macOS jobs и прикладывающий оба пакета с SHA256SUMS. Локальные build-скрипты не делают push или публикацию.
 
-- Работа конкретной площадки зависит от актуальности `yt-dlp`.
-- Приложение не обходит DRM, платный доступ, авторизацию и региональные ограничения.
-- Пользователь самостоятельно отвечает за соблюдение авторских прав и правил платформ.
+Необязательная подпись: Windows — `VDP_SIGN_CERT_PATH` / `VDP_SIGN_CERT_PASSWORD`; macOS — `VDP_MAC_SIGN_IDENTITY` / `VDP_MAC_NOTARY_PROFILE`. Без них Windows-сборка неподписанная, macOS использует ad-hoc подпись. Секреты CI задаются вне репозитория.
 
-<div align="center">
+О компонентах и обязанностях при распространении: [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md). Лицензия проекта от имени владельца не назначалась.
 
-Сделано с вниманием к деталям • **Video Downloader Pro 4**
-
-</div>
+Плейлисты, субтитры, клипы, cookies браузера, proxy UI и самообновление приложения отложены как P2. Фактические acceptance gates и ограничения: [отчёт реализации](docs/production/VIDEO-DOWNLOADER-PRO-5-IMPLEMENTATION-REPORT.md).

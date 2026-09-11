@@ -1,4 +1,9 @@
 #include "main_window.hpp"
+#include "downloads/download_manager.hpp"
+#include "metadata/metadata_service.hpp"
+#include "runtime/tool_updater.hpp"
+#include "runtime/toolchain_service.hpp"
+#include "diagnostics/diagnostics.hpp"
 
 #include <QAction>
 #include <QApplication>
@@ -30,17 +35,19 @@
 #include <QNetworkRequest>
 #include <QPixmap>
 #include <QPointer>
-#include <QProcess>
+
 #include <QProgressBar>
 #include <QPushButton>
 #include <QScrollArea>
-#include <QSaveFile>
+
 #include <QSpinBox>
 #include <QStackedWidget>
 #include <QStandardPaths>
 #include <QStatusBar>
 #include <QTextEdit>
 #include <QTimer>
+#include <QTimeZone>
+#include <QTextDocument>
 #include <QUrl>
 #include <QVBoxLayout>
 #include <QUuid>
@@ -59,45 +66,122 @@ bool validUrl(const QString& value) {
     return url.isValid() && (url.scheme() == "http" || url.scheme() == "https") && !url.host().isEmpty();
 }
 
-QString compatibleThumbnailUrl(const QJsonObject& metadata) {
-    const auto isSupported = [](const QString& value) {
-        const QString path = QUrl(value).path().toLower();
-        return path.endsWith(".jpg") || path.endsWith(".jpeg") || path.endsWith(".png")
-            || path.endsWith(".gif") || path.endsWith(".bmp");
-    };
-
-    const QString primary = metadata.value("thumbnail").toString();
-    if (isSupported(primary)) return primary;
-
-    const QJsonArray thumbnails = metadata.value("thumbnails").toArray();
-    for (qsizetype index = thumbnails.size(); index > 0; --index) {
-        const QString candidate = thumbnails.at(index - 1).toObject().value("url").toString();
-        if (isSupported(candidate)) return candidate;
-    }
-    return primary;
-}
 }
 
-MainWindow::MainWindow(QWidget* parent)
+MainWindow::MainWindow(QWidget* parent, bool initializeRuntime)
     : QMainWindow(parent), paths_(AppPaths::defaults()), toolchain_(paths_),
-      settings_(paths_.settingsFile, QSettings::IniFormat) {
+      settings_(paths_.settingsFile, QSettings::IniFormat), history_(paths_.historyFile) {
     thumbnailNetwork_ = new QNetworkAccessManager(this);
+    downloads_ = new DownloadManager(&toolchain_, this);
+    metadata_ = new MetadataService(&toolchain_, this);
+    updater_ = new ToolUpdater(paths_, this);
+    runtime_ = new ToolchainService(paths_, this);
     setWindowTitle(QString("%1 %2").arg(kAppTitle, VDP_VERSION));
     setMinimumSize(1100, 720);
     resize(1280, 820);
     setWindowIcon(QIcon(":/icon.ico"));
-    setupUi();
-    setupMenu();
-    loadSettings();
-    loadHistory();
-    QTimer::singleShot(0, this, [this] {
-        toolStatus_ = toolchain_.ensureRuntime();
-        refreshToolStatus(true);
-    });
+    setupUi(); setupMenu(); loadSettings();
+    QString historyError;
+    if (!history_.load(&historyError)) showMessage(historyError, true);
+    loadHistory(); setupServices(initializeRuntime);
 }
 
 MainWindow::~MainWindow() {
-    qDeleteAll(tasks_);
+    downloads_->shutdown();
+    // Metadata callbacks refer to ids; QObject connections vanish with their receiver.
+    delete metadata_;
+    qDeleteAll(cards_);
+}
+
+void MainWindow::setupServices(bool initializeRuntime) {
+    downloads_->setParallelLimit(parallelSpin_->value());
+    connect(parallelSpin_, &QSpinBox::valueChanged, downloads_, &DownloadManager::setParallelLimit);
+    connect(downloads_, &DownloadManager::taskAdded, this, &MainWindow::createTaskCard);
+    connect(downloads_, &DownloadManager::taskChanged, this, &MainWindow::refreshTaskCard);
+    connect(downloads_, &DownloadManager::taskRemoved, this, &MainWindow::removeTaskCard);
+    connect(downloads_, &DownloadManager::queueChanged, this, [this] { updateQueueStatus(); updateToolActions(); });
+    connect(downloads_, &DownloadManager::storageError, this, [this](const QString& error) { showMessage(error, true); });
+    connect(downloads_, &DownloadManager::taskFinished, this, [this](const QString& id) {
+        const auto* task = downloads_->task(id); if (!task) return;
+        QString error;
+        if (!history_.append(*task, &error)) showMessage(error, true);
+        appendBoundedLog(paths_.logsDir, "downloads", id + " " + taskStateKey(task->state) + " " + task->errorMessage);
+        if (!task->errorMessage.isEmpty()) {
+            lastError_ = redactSecrets(task->errorMessage);
+            if (!task->failure.technicalMessage.isEmpty())
+                lastError_ += "\nТехнические детали: " + redactSecrets(task->failure.technicalMessage);
+        }
+        loadHistory(historySearch_->text());
+        if (task->state == TaskState::Completed && autoOpenCheck_->isChecked()) openPath(task->outputPath);
+    });
+    connect(metadata_, &MetadataService::ready, this, [this](const QString& id, const VideoMetadata& metadata) {
+        updateToolActions();
+        if (id.startsWith("task:")) { applyTaskMetadata(id.mid(5), metadata); return; }
+        if (id != previewRequestId_) return;
+        checkedUrl_ = urlEdit_->text().trimmed(); checkedMetadata_ = metadata;
+        previewTitle_->setText(metadata.title);
+        QString details = QString("%1 • %2 • %3:%4").arg(metadata.uploader, metadata.sourceHost)
+            .arg(metadata.durationSeconds / 60).arg(metadata.durationSeconds % 60, 2, 10, QLatin1Char('0'));
+        int top = 0; for (const auto& format : metadata.formats) top = qMax(top, format.height);
+        if (top) details += QString(" • до %1p").arg(top);
+        previewDetails_->setText(details);
+        loadThumbnail(metadata.thumbnailUrl, previewArtwork_);
+        advancedCombo_->clear(); advancedCombo_->addItem("Простой пресет", -1);
+        for (int i = 0; i < metadata.formats.size(); ++i) advancedCombo_->addItem(metadata.formats[i].label, i);
+        advancedCombo_->setVisible(!metadata.formats.isEmpty());
+    });
+    connect(metadata_, &MetadataService::failed, this, [this](const QString& id, const QString& error) {
+        updateToolActions();
+        if (id == previewRequestId_) {
+            previewTitle_->setText("Не удалось проверить ссылку");
+            previewDetails_->setText(error + " Можно добавить ссылку с простым пресетом.");
+        }
+    });
+    connect(urlEdit_, &QLineEdit::textChanged, this, [this] {
+        metadata_->cancel(previewRequestId_); previewRequestId_.clear();
+        checkedUrl_.clear(); checkedMetadata_ = {}; advancedCombo_->hide();
+    });
+    connect(runtime_, &ToolchainService::ready, this, [this](const ToolchainStatus& status) {
+        toolStatus_ = status; refreshToolStatus();
+        if (!repairQueue_.isEmpty()) continueRepair();
+        else if (toolStatus_.ready() && !updater_->isBusy()) {
+            for (const auto& id : downloads_->taskIds()) {
+                const auto* task = downloads_->task(id);
+                if (task && !isTerminal(task->state)) metadata_->request("task:" + id, task->url);
+            }
+            downloads_->start();
+        }
+        updateToolActions();
+    });
+    connect(runtime_, &ToolchainService::failed, this, [this](const QString& error) {
+        repairQueue_.clear(); showMessage(error, true); updateToolActions();
+    });
+    connect(updater_, &ToolUpdater::progress, this, [this](const QString&, qint64 received, qint64 total) {
+        toolProgress_->setRange(0, total > 0 ? 1000 : 0);
+        if (total > 0) toolProgress_->setValue(qRound(1000.0 * received / total));
+        toolProgress_->setFormat(total > 0 ? "%p%" : QString("Получено %1 МБ").arg(received / 1048576.0, 0, 'f', 1));
+    });
+    connect(updater_, &ToolUpdater::phaseChanged, this, [this](const QString&, const QString& phase, bool cancellable) {
+        toolLog_->append(redactSecrets(phase)); cancelUpdate_->setEnabled(cancellable); updateToolActions();
+    });
+    connect(updater_, &ToolUpdater::finished, this, [this](const QString& id) {
+        toolLog_->append(id + ": обновление завершено.");
+        appendBoundedLog(paths_.logsDir, "runtime", id + " updated");
+        toolProgress_->setRange(0, 1000); toolProgress_->setValue(1000);
+        runtime_->refresh(); updateToolActions();
+    });
+    connect(updater_, &ToolUpdater::failed, this, [this](const QString&, const QString& error) {
+        repairQueue_.clear(); showMessage(error, true); runtime_->refresh(); updateToolActions();
+    });
+    connect(updater_, &ToolUpdater::cancelled, this, [this](const QString&) {
+        repairQueue_.clear(); showMessage("Обновление отменено."); runtime_->refresh(); updateToolActions();
+    });
+    connect(cancelUpdate_, &QPushButton::clicked, updater_, &ToolUpdater::cancel);
+    const int recovered = downloads_->restoreQueue();
+    if (recovered) showMessage(QString("Восстановлено задач: %1").arg(recovered));
+    if (initializeRuntime) QTimer::singleShot(0, runtime_, &ToolchainService::ensure);
+    updateQueueStatus(); updateToolActions();
+    appendBoundedLog(paths_.logsDir, "app", "Started " VDP_VERSION);
 }
 
 QLabel* MainWindow::createMutedLabel(const QString& text) const {
@@ -151,7 +235,7 @@ void MainWindow::setupUi() {
     brandText->setSpacing(1);
     auto* brandTitle = new QLabel("Video Downloader");
     brandTitle->setObjectName("BrandTitle");
-    auto* brandEdition = new QLabel("PRO  •  ВЕРСИЯ 4.0");
+    auto* brandEdition = new QLabel("PRO  •  ВЕРСИЯ " VDP_VERSION);
     brandEdition->setObjectName("BrandEdition");
     brandText->addWidget(brandTitle);
     brandText->addWidget(brandEdition);
@@ -240,6 +324,7 @@ QWidget* MainWindow::createDownloadsPage() {
     formatLabel->setObjectName("InputLabel");
     urlEdit_ = new QLineEdit;
     urlEdit_->setObjectName("Input");
+    urlEdit_->setAccessibleName("Ссылка на видео");
     urlEdit_->setMinimumHeight(46);
     urlEdit_->setPlaceholderText("https://www.youtube.com/watch?v=...");
     auto* paste = createButton("Вставить");
@@ -247,6 +332,7 @@ QWidget* MainWindow::createDownloadsPage() {
     auto* add = createButton("Добавить в очередь", "PrimaryButton");
     formatCombo_ = new QComboBox;
     formatCombo_->setObjectName("Input");
+    formatCombo_->setAccessibleName("Простой выбор качества");
     formatCombo_->setMinimumHeight(46);
     for (const auto& preset : formatPresets()) formatCombo_->addItem(preset.label, preset.key);
     for (auto* button : {paste, check, add}) button->setMinimumHeight(46);
@@ -260,6 +346,11 @@ QWidget* MainWindow::createDownloadsPage() {
     inputGrid->setColumnStretch(0, 1);
     inputGrid->setColumnMinimumWidth(1, 130);
     inputLayout->addLayout(inputGrid);
+    advancedCombo_ = new QComboBox;
+    advancedCombo_->setObjectName("AdvancedFormats");
+    advancedCombo_->setAccessibleName("Расширенный выбор качества");
+    advancedCombo_->hide();
+    inputLayout->addWidget(advancedCombo_);
 
     auto* preview = new QFrame;
     preview->setObjectName("PreviewCard");
@@ -344,11 +435,12 @@ QWidget* MainWindow::createDownloadsPage() {
     connect(urlEdit_, &QLineEdit::returnPressed, this, &MainWindow::addDownload);
     connect(site, &QPushButton::clicked, this, [] { QDesktopServices::openUrl(QUrl("https://onyshop.tech")); });
     connect(clearFinished, &QPushButton::clicked, this, [this] {
-        for (auto* task : tasks_) if (task->completed && task->card) task->card->hide();
+        const auto ids = downloads_->taskIds();
+        for (const auto& id : ids) downloads_->removeTerminal(id);
     });
     connect(cancelAll, &QPushButton::clicked, this, [this] {
-        const auto allTasks = tasks_.values();
-        for (auto* task : allTasks) if (!task->completed) cancelTask(task);
+        const auto ids = downloads_->taskIds();
+        for (const auto& id : ids) downloads_->cancel(id);
     });
     return page;
 }
@@ -375,6 +467,37 @@ QWidget* MainWindow::createHistoryPage() {
     connect(historyList_, &QListWidget::itemDoubleClicked, this, [this](QListWidgetItem* item) {
         const QString path = item->data(Qt::UserRole).toString();
         if (!path.isEmpty()) openPath(path);
+    });
+    historyList_->setContextMenuPolicy(Qt::CustomContextMenu);
+    connect(historyList_, &QWidget::customContextMenuRequested, this, [this](const QPoint& position) {
+        auto* item = historyList_->itemAt(position); if (!item) return;
+        const auto id = item->data(Qt::UserRole + 1).toString();
+        HistoryRecord record;
+        bool found = false;
+        for (const auto& candidate : history_.newestFirst()) if (candidate.task.id == id) { record = candidate; found = true; break; }
+        if (!found) return;
+        QMenu menu(this);
+        auto* open = menu.addAction("Открыть файл");
+        auto* folder = menu.addAction("Показать в папке");
+        auto* retry = menu.addAction("Скачать снова");
+        auto* copy = menu.addAction("Скопировать ссылку");
+        auto* remove = menu.addAction("Удалить запись");
+        auto* action = menu.exec(historyList_->mapToGlobal(position));
+        if (action == open) openPath(record.task.outputPath);
+        else if (action == folder) openPath(QFileInfo(record.task.outputPath).absolutePath());
+        else if (action == copy) QApplication::clipboard()->setText(record.task.url);
+        else if (action == remove) { QString error; if (!history_.remove(id, &error)) showMessage(error, true); loadHistory(historySearch_->text()); }
+        else if (action == retry) {
+            FormatPreset preset{record.task.formatKey, record.task.formatLabel, record.task.formatSelector,
+                record.task.extractAudio, record.task.extension};
+            preset.audioQuality = record.task.audioQuality;
+            preset.originalAudio = record.task.originalAudio;
+            if (preset.selector.isEmpty()) preset = formatPreset(record.task.formatKey);
+            downloads_->enqueue({record.task.url, record.task.title,
+                record.task.outputDirectory.isEmpty() ? outputEdit_->text() : record.task.outputDirectory, preset});
+            navigation_->setCurrentRow(0);
+            if (toolStatus_.ready() && !updater_->isBusy() && !runtime_->isBusy()) downloads_->start();
+        }
     });
     return page;
 }
@@ -419,6 +542,8 @@ QWidget* MainWindow::createToolsPage() {
     layout->addWidget(ytdlpStatus_);
     layout->addWidget(denoStatus_);
     layout->addWidget(ffmpegStatus_);
+    ffprobeStatus_ = createMutedLabel("ffprobe: проверка...");
+    layout->addWidget(ffprobeStatus_);
     auto* buttons = new QHBoxLayout;
     auto* updateYtdlp = createButton("Обновить yt-dlp", "PrimaryButton");
     auto* updateDeno = createButton("Обновить Deno");
@@ -428,10 +553,18 @@ QWidget* MainWindow::createToolsPage() {
     buttons->addWidget(updateDeno);
     buttons->addWidget(updateFfmpeg);
     buttons->addWidget(repair);
+    toolButtons_ = {updateYtdlp, updateDeno, updateFfmpeg, repair};
+    cancelUpdate_ = createButton("Отменить обновление");
+    cancelUpdate_->setEnabled(false);
+    buttons->addWidget(cancelUpdate_);
     layout->addLayout(buttons);
+    toolProgress_ = new QProgressBar;
+    toolProgress_->setRange(0, 1000); toolProgress_->setValue(0);
+    layout->addWidget(toolProgress_);
     root->addWidget(card);
     toolLog_ = new QTextEdit;
     toolLog_->setReadOnly(true);
+    toolLog_->document()->setMaximumBlockCount(500);
     toolLog_->setObjectName("LogPanel");
     root->addWidget(toolLog_, 1);
     connect(updateYtdlp, &QPushButton::clicked, this, [this] { runToolAction("ytdlp"); });
@@ -478,7 +611,7 @@ QWidget* MainWindow::createSettingsPage() {
     root->addStretch();
     connect(browse, &QPushButton::clicked, this, &MainWindow::chooseOutputDirectory);
     connect(outputEdit_, &QLineEdit::editingFinished, this, &MainWindow::saveSettings);
-    connect(parallelSpin_, qOverload<int>(&QSpinBox::valueChanged), this, [this] { saveSettings(); startNextDownloads(); });
+    connect(parallelSpin_, qOverload<int>(&QSpinBox::valueChanged), this, [this] { saveSettings(); });
     connect(autoOpenCheck_, &QCheckBox::toggled, this, &MainWindow::saveSettings);
     return page;
 }
@@ -507,6 +640,12 @@ QWidget* MainWindow::createAboutPage() {
     connect(repo, &QPushButton::clicked, this, [] { QDesktopServices::openUrl(QUrl(VDP_REPOSITORY)); });
     aboutLayout->addSpacing(10);
     aboutLayout->addWidget(repo, 0, Qt::AlignLeft);
+    auto* diagnostics = createButton("Скопировать диагностику");
+    connect(diagnostics, &QPushButton::clicked, this, [this] {
+        QApplication::clipboard()->setText(diagnosticReport(toolStatus_, lastError_));
+        showMessage("Диагностика скопирована.");
+    });
+    aboutLayout->addWidget(diagnostics, 0, Qt::AlignLeft);
     root->addWidget(aboutHero);
     root->addStretch();
     return page;
@@ -521,10 +660,10 @@ void MainWindow::setupMenu() {
     folder->setShortcut(QKeySequence("Ctrl+O"));
     connect(folder, &QAction::triggered, this, [this] { openPath(outputEdit_->text()); });
     file->addSeparator();
-    file->addAction("Выход", this, &QWidget::close, QKeySequence("Ctrl+Q"));
+    file->addAction("Выход", QKeySequence("Ctrl+Q"), this, &QWidget::close);
     auto* downloads = menuBar()->addMenu("Загрузки");
-    downloads->addAction("Добавить в очередь", this, &MainWindow::addDownload, QKeySequence("Ctrl+D"));
-    downloads->addAction("Проверить ссылку", this, &MainWindow::checkUrl, QKeySequence("Ctrl+I"));
+    downloads->addAction("Добавить в очередь", QKeySequence("Ctrl+D"), this, &MainWindow::addDownload);
+    downloads->addAction("Проверить ссылку", QKeySequence("Ctrl+I"), this, &MainWindow::checkUrl);
 }
 
 void MainWindow::loadSettings() {
@@ -546,151 +685,149 @@ void MainWindow::saveSettings() {
 }
 
 void MainWindow::refreshToolStatus(bool versions) {
-    toolStatus_ = toolchain_.status(versions);
+    if (versions) { runtime_->refresh(); return; }
     auto describe = [](const ToolInfo& tool) {
-        return QString("%1: %2%3\n%4").arg(tool.name, tool.exists ? "найден" : "не найден",
-            tool.version.isEmpty() ? "" : " • " + tool.version, tool.path);
+        return QString("%1: %2 • %3 • %4\n%5").arg(tool.name, tool.exists ? "найден" : "не найден",
+            tool.version.isEmpty() ? "версия неизвестна" : tool.version,
+            tool.verified ? "целостность проверена" : "целостность не подтверждена", tool.path);
     };
     ytdlpStatus_->setText(describe(toolStatus_.ytdlp));
     denoStatus_->setText(describe(toolStatus_.deno));
     ffmpegStatus_->setText(describe(toolStatus_.ffmpeg));
+    ffprobeStatus_->setText(describe(toolStatus_.ffprobe));
     ytdlpChip_->setText(QString("yt-dlp: %1").arg(toolStatus_.ytdlp.exists ? "готов" : "нет"));
     ffmpegChip_->setText(QString("runtime: %1").arg(toolStatus_.ready() ? "готов" : "требует внимания"));
-    if (!toolStatus_.warning.isEmpty()) toolLog_->append(toolStatus_.warning);
+    if (!toolStatus_.warning.isEmpty()) toolLog_->append(redactSecrets(toolStatus_.warning));
+}
+
+void MainWindow::updateToolActions() {
+    const bool busy = updater_->isBusy() || runtime_->isBusy();
+    const bool active = downloads_->activeCount() > 0 || metadata_->isBusy();
+    for (auto* button : toolButtons_) button->setEnabled(!busy && !active);
+    if (!updater_->isBusy()) cancelUpdate_->setEnabled(false);
 }
 
 void MainWindow::runToolAction(const QString& action) {
-    QApplication::setOverrideCursor(Qt::WaitCursor);
-    QString error;
-    bool ok = false;
-    if (action == "ytdlp") ok = toolchain_.updateYtdlp(&error);
-    else if (action == "deno") ok = toolchain_.updateDeno(&error);
-    else if (action == "ffmpeg") ok = toolchain_.updateFfmpeg(&error);
-    else { toolStatus_ = toolchain_.repairRuntime(); ok = toolStatus_.ready(); }
-    QApplication::restoreOverrideCursor();
-    toolLog_->append(ok ? "Операция завершена успешно." : "Ошибка: " + error);
-    refreshToolStatus(true);
-    showMessage(ok ? "Runtime обновлён." : sanitizeError(error), !ok);
+    if (updater_->isBusy() || runtime_->isBusy() || downloads_->activeCount() > 0 || metadata_->isBusy()) {
+        showMessage("Дождитесь завершения текущих операций."); return;
+    }
+    downloads_->setPaused(true);
+    if (action == "repair") { repairQueue_ = {"yt-dlp", "deno", "ffmpeg"}; runtime_->repair(); }
+    else updater_->start(action == "ytdlp" ? "yt-dlp" : action);
+    updateToolActions();
+}
+
+void MainWindow::continueRepair() {
+    const auto usable = [](const ToolInfo& tool) {
+        return tool.exists && !tool.version.isEmpty() && (tool.sha256.isEmpty() || tool.verified);
+    };
+    while (!repairQueue_.isEmpty()) {
+        const auto id = repairQueue_.takeFirst();
+        if ((id == "yt-dlp" && usable(toolStatus_.ytdlp)) || (id == "deno" && usable(toolStatus_.deno)) ||
+            (id == "ffmpeg" && usable(toolStatus_.ffmpeg) && usable(toolStatus_.ffprobe))) continue;
+        updater_->start(id); return;
+    }
+    if (toolStatus_.ready()) { downloads_->start(); showMessage("Runtime готов."); }
+    updateToolActions();
 }
 
 void MainWindow::checkUrl() {
     const QString url = urlEdit_->text().trimmed();
     if (!validUrl(url)) { showMessage("Введите корректную ссылку.", true); return; }
-    if (!QFileInfo::exists(toolchain_.ytdlpPath())) { navigation_->setCurrentRow(2); showMessage("yt-dlp не найден.", true); return; }
-    if (metadataProcess_) { metadataProcess_->kill(); metadataProcess_->deleteLater(); }
-    checkedUrl_.clear();
-    checkedMetadata_ = {};
-    previewTitle_->setText("Получение информации...");
-    previewDetails_->setText(url);
-    auto* process = new QProcess(this);
-    metadataProcess_ = process;
-    connect(process, &QProcess::finished, this, [this, process, url](int exitCode, QProcess::ExitStatus) {
-        const QByteArray output = process->readAllStandardOutput();
-        const QString errors = QString::fromUtf8(process->readAllStandardError());
-        if (exitCode == 0) {
-            const auto json = QJsonDocument::fromJson(output).object();
-            checkedUrl_ = url;
-            checkedMetadata_ = json;
-            previewTitle_->setText(json.value("title").toString("Без названия"));
-            const int seconds = json.value("duration").toInt();
-            previewDetails_->setText(QString("%1 • %2:%3")
-                .arg(json.value("uploader").toString("Автор неизвестен"))
-                .arg(seconds / 60).arg(seconds % 60, 2, 10, QLatin1Char('0')));
-            loadThumbnail(compatibleThumbnailUrl(json), previewArtwork_);
-        } else {
-            previewTitle_->setText("Не удалось проверить ссылку");
-            previewDetails_->setText(sanitizeError(errors));
-        }
-        process->deleteLater();
-        if (metadataProcess_ == process) metadataProcess_ = nullptr;
-    });
-    process->start(toolchain_.ytdlpPath(), buildMetadataArguments(url, toolchain_.denoPath()));
-}
-
-MainWindow::Task* MainWindow::createTask(const QString& url, const FormatPreset& preset) {
-    auto* task = new Task;
-    task->id = QUuid::createUuid().toString(QUuid::WithoutBraces);
-    task->url = url;
-    task->preset = preset;
-    task->title = url;
-    task->card = new QFrame;
-    task->card->setObjectName("Card");
-    auto* layout = new QHBoxLayout(task->card);
-    layout->setContentsMargins(14, 14, 14, 14);
-    layout->setSpacing(16);
-    task->thumbnail = new QLabel("VIDEO");
-    task->thumbnail->setObjectName("TaskThumbnail");
-    task->thumbnail->setAlignment(Qt::AlignLeft | Qt::AlignBottom);
-    task->thumbnail->setFixedSize(168, 94);
-    task->thumbnail->setMargin(12);
-    layout->addWidget(task->thumbnail);
-
-    auto* details = new QVBoxLayout;
-    details->setSpacing(7);
-    auto* top = new QHBoxLayout;
-    task->titleLabel = heading(task->title, "SectionTitle");
-    task->titleLabel->setWordWrap(true);
-    task->cancelButton = createButton("Отменить", "DangerButton");
-    top->addWidget(task->titleLabel, 1);
-    top->addWidget(task->cancelButton);
-    task->metadataLabel = createMutedLabel(QString("%1 • получение информации...").arg(preset.label));
-    task->statusLabel = createMutedLabel("В очереди");
-    task->progress = new QProgressBar;
-    task->progress->setRange(0, 1000);
-    task->progress->setValue(0);
-    task->speedLabel = createMutedLabel({});
-    details->addLayout(top);
-    details->addWidget(task->metadataLabel);
-    details->addWidget(task->statusLabel);
-    details->addWidget(task->progress);
-    details->addWidget(task->speedLabel);
-    layout->addLayout(details, 1);
-    connect(task->cancelButton, &QPushButton::clicked, this, [this, task] { cancelTask(task); });
-    queueLayout_->addWidget(task->card);
-    emptyQueue_->hide();
-    tasks_.insert(task->id, task);
-    if (checkedUrl_ == url && !checkedMetadata_.isEmpty()) applyTaskMetadata(task, checkedMetadata_);
-    else hydrateTaskMetadata(task);
-    return task;
-}
-
-void MainWindow::hydrateTaskMetadata(Task* task) {
-    auto* process = new QProcess(this);
-    connect(process, &QProcess::finished, this, [this, process, task](int exitCode, QProcess::ExitStatus) {
-        if (exitCode == 0) {
-            const QJsonObject metadata = QJsonDocument::fromJson(process->readAllStandardOutput()).object();
-            if (!metadata.isEmpty()) applyTaskMetadata(task, metadata);
-        }
-        process->deleteLater();
-    });
-    process->start(toolchain_.ytdlpPath(), buildMetadataArguments(task->url, toolchain_.denoPath()));
-}
-
-void MainWindow::applyTaskMetadata(Task* task, const QJsonObject& metadata) {
-    const QString title = metadata.value("title").toString().trimmed();
-    if (!title.isEmpty()) {
-        task->title = title;
-        task->titleLabel->setText(title);
+    if (updater_->isBusy() || runtime_->isBusy()) { showMessage("Дождитесь завершения обновления runtime."); return; }
+    if (!toolStatus_.ytdlp.exists || toolStatus_.ytdlp.version.isEmpty()
+        || (!toolStatus_.ytdlp.sha256.isEmpty() && !toolStatus_.ytdlp.verified)) {
+        navigation_->setCurrentRow(2); showMessage("yt-dlp не готов. Восстановите runtime.", true); return;
     }
-    QStringList details{task->preset.label};
-    const QString uploader = metadata.value("uploader").toString().trimmed();
-    if (!uploader.isEmpty()) details << uploader;
-    const int seconds = metadata.value("duration").toInt();
-    if (seconds > 0) details << QString("%1:%2").arg(seconds / 60).arg(seconds % 60, 2, 10, QLatin1Char('0'));
-    task->metadataLabel->setText(details.join(" • "));
-    loadThumbnail(compatibleThumbnailUrl(metadata), task->thumbnail);
+    metadata_->cancel(previewRequestId_);
+    previewRequestId_ = "preview:" + QUuid::createUuid().toString(QUuid::WithoutBraces);
+    checkedUrl_.clear(); checkedMetadata_ = {}; advancedCombo_->hide();
+    previewTitle_->setText("Получение информации..."); previewDetails_->setText(url);
+    metadata_->request(previewRequestId_, url);
+    updateToolActions();
+}
+
+void MainWindow::createTaskCard(const QString& id) {
+    const auto* model = downloads_->task(id); if (!model || cards_.contains(id)) return;
+    auto* task = new TaskCard; task->id = id;
+    task->card = new QFrame; task->card->setObjectName("Card"); task->card->setProperty("taskId", id);
+    auto* layout = new QHBoxLayout(task->card); layout->setContentsMargins(14, 14, 14, 14); layout->setSpacing(16);
+    task->thumbnail = new QLabel("ВИДЕО"); task->thumbnail->setObjectName("TaskThumbnail");
+    task->thumbnail->setAlignment(Qt::AlignLeft | Qt::AlignBottom); task->thumbnail->setFixedSize(168, 94); task->thumbnail->setMargin(12);
+    layout->addWidget(task->thumbnail);
+    auto* details = new QVBoxLayout; details->setSpacing(7);
+    auto* top = new QHBoxLayout;
+    task->titleLabel = heading(model->title, "SectionTitle"); task->titleLabel->setWordWrap(true);
+    task->cancelButton = createButton("Отменить", "DangerButton");
+    task->removeButton = createButton("Убрать карточку"); task->removeButton->hide();
+    top->addWidget(task->titleLabel, 1); top->addWidget(task->cancelButton); top->addWidget(task->removeButton);
+    task->metadataLabel = createMutedLabel(model->formatLabel);
+    task->statusLabel = createMutedLabel(taskStateLabel(model->state));
+    task->progress = new QProgressBar; task->progress->setRange(0, 1000); task->progress->setValue(0);
+    task->speedLabel = createMutedLabel({});
+    details->addLayout(top); details->addWidget(task->metadataLabel); details->addWidget(task->statusLabel);
+    details->addWidget(task->progress); details->addWidget(task->speedLabel); layout->addLayout(details, 1);
+    connect(task->cancelButton, &QPushButton::clicked, this, [this, id] {
+        const auto* model = downloads_->task(id); if (!model) return;
+        if (model->state == TaskState::Completed) openPath(model->outputPath);
+        else if (isTerminal(model->state)) {
+            if (updater_->isBusy() || runtime_->isBusy()) { showMessage("Дождитесь завершения операции runtime."); return; }
+            downloads_->retry(id);
+            if (toolStatus_.ready()) downloads_->start();
+        }
+        else downloads_->cancel(id);
+    });
+    connect(task->removeButton, &QPushButton::clicked, this, [this, id] { downloads_->removeTerminal(id); });
+    queueLayout_->addWidget(task->card); emptyQueue_->hide(); cards_.insert(id, task);
+    if (checkedUrl_ == model->url) applyTaskMetadata(id, checkedMetadata_);
+    else if (toolStatus_.ready() && !updater_->isBusy() && !runtime_->isBusy()) metadata_->request("task:" + id, model->url);
+    updateToolActions();
+    refreshTaskCard(id);
+}
+
+void MainWindow::refreshTaskCard(const QString& id) {
+    const auto* model = downloads_->task(id); auto* card = cards_.value(id);
+    if (!model || !card) return;
+    card->titleLabel->setText(model->title);
+    card->statusLabel->setText(taskStateLabel(model->state) + (model->errorMessage.isEmpty() ? "" : " • " + model->errorMessage));
+    card->progress->setValue(qBound(0, qRound(model->progressPercent * 10), 1000));
+    card->speedLabel->setText(model->speed.isEmpty() ? "" : QString("Скорость: %1 • Осталось: %2").arg(model->speed, model->eta));
+    card->removeButton->setVisible(isTerminal(model->state));
+    card->cancelButton->setText(model->state == TaskState::Completed ? "Открыть" : isTerminal(model->state) ? "Повторить" : "Отменить");
+}
+
+void MainWindow::removeTaskCard(const QString& id) {
+    metadata_->cancel("task:" + id);
+    auto* card = cards_.take(id); if (!card) return;
+    queueLayout_->removeWidget(card->card); card->card->deleteLater(); delete card;
+    emptyQueue_->setVisible(cards_.isEmpty()); updateQueueStatus();
+}
+
+void MainWindow::applyTaskMetadata(const QString& id, const VideoMetadata& metadata) {
+    auto* card = cards_.value(id); const auto* model = downloads_->task(id); if (!card || !model) return;
+    downloads_->setTitle(id, metadata.title);
+    card->metadataLabel->setText(QString("%1 • %2 • %3:%4").arg(model->formatLabel, metadata.uploader)
+        .arg(metadata.durationSeconds / 60).arg(metadata.durationSeconds % 60, 2, 10, QLatin1Char('0')));
+    loadThumbnail(metadata.thumbnailUrl, card->thumbnail);
 }
 
 void MainWindow::loadThumbnail(const QString& url, QLabel* target) {
-    if (url.isEmpty() || !target) return;
+    if (url.isEmpty() || !target || !validUrl(url)) return;
     QNetworkRequest request{QUrl(url)};
     request.setHeader(QNetworkRequest::UserAgentHeader, "VideoDownloaderPro/" VDP_VERSION);
+    request.setTransferTimeout(15000);
+    target->setProperty("thumbnailUrl", url);
     auto* reply = thumbnailNetwork_->get(request);
+    auto bytes = std::make_shared<QByteArray>();
+    connect(reply, &QNetworkReply::readyRead, this, [reply, bytes] {
+        bytes->append(reply->readAll());
+        if (bytes->size() > 5 * 1024 * 1024) reply->abort();
+    });
     const QPointer<QLabel> safeTarget(target);
-    connect(reply, &QNetworkReply::finished, this, [reply, safeTarget] {
-        if (safeTarget && reply->error() == QNetworkReply::NoError) {
+    connect(reply, &QNetworkReply::finished, this, [reply, safeTarget, bytes, url] {
+        if (safeTarget && safeTarget->property("thumbnailUrl").toString() == url && reply->error() == QNetworkReply::NoError) {
             QPixmap image;
-            if (image.loadFromData(reply->readAll())) {
+            if (image.loadFromData(*bytes)) {
                 const QSize size = safeTarget->size();
                 const QPixmap scaled = image.scaled(size, Qt::KeepAspectRatioByExpanding, Qt::SmoothTransformation);
                 const int x = qMax(0, (scaled.width() - size.width()) / 2);
@@ -706,128 +843,31 @@ void MainWindow::loadThumbnail(const QString& url, QLabel* target) {
 void MainWindow::addDownload() {
     const QString url = urlEdit_->text().trimmed();
     if (!validUrl(url)) { showMessage("Введите корректную ссылку.", true); return; }
-    refreshToolStatus(false);
+    if (updater_->isBusy() || runtime_->isBusy()) { showMessage("Дождитесь завершения подготовки runtime."); return; }
     if (!toolStatus_.ready()) { navigation_->setCurrentRow(2); showMessage("Runtime не готов. Нажмите «Восстановить runtime».", true); return; }
     saveSettings();
-    auto* task = createTask(url, formatPreset(formatCombo_->currentData().toString()));
-    pending_.append(task->id);
-    urlEdit_->clear();
-    updateQueueStatus();
-    startNextDownloads();
-}
-
-void MainWindow::startNextDownloads() {
-    while (runningCount_ < parallelSpin_->value() && !pending_.isEmpty()) {
-        const QString id = pending_.takeFirst();
-        if (auto* task = tasks_.value(id); task && !task->completed) startTask(task);
-    }
-    updateQueueStatus();
-}
-
-void MainWindow::startTask(Task* task) {
-    QDir().mkpath(outputEdit_->text());
-    task->running = true;
-    ++runningCount_;
-    task->statusLabel->setText("Загрузка...");
-    task->process = new QProcess(this);
-    connect(task->process, &QProcess::readyReadStandardOutput, this, [this, task] { consumeTaskOutput(task); });
-    connect(task->process, &QProcess::readyReadStandardError, this, [task] {
-        task->stderrText += QString::fromUtf8(task->process->readAllStandardError());
-    });
-    connect(task->process, &QProcess::finished, this, [this, task](int exitCode, QProcess::ExitStatus) { finishTask(task, exitCode); });
-    task->process->start(toolchain_.ytdlpPath(), buildDownloadArguments(task->url, task->preset,
-        outputEdit_->text(), toolchain_.ffmpegDirectory(), toolchain_.denoPath()));
-    updateQueueStatus();
-}
-
-void MainWindow::consumeTaskOutput(Task* task, bool flush) {
-    task->stdoutBuffer += task->process->readAllStandardOutput();
-    while (true) {
-        const qsizetype newline = task->stdoutBuffer.indexOf('\n');
-        if (newline < 0 && !flush) break;
-        QByteArray raw = newline < 0 ? task->stdoutBuffer : task->stdoutBuffer.left(newline);
-        task->stdoutBuffer = newline < 0 ? QByteArray{} : task->stdoutBuffer.mid(newline + 1);
-        const QString line = QString::fromUtf8(raw).trimmed();
-        if (line.startsWith("vdppath:")) task->outputPath = line.mid(8).trimmed();
-        if (line.startsWith("download:")) {
-            const auto parts = line.mid(9).split('|');
-            bool ok = false;
-            const double percent = parts.value(0).remove('%').trimmed().toDouble(&ok);
-            if (ok) task->progress->setValue(qBound(0, qRound(percent * 10), 1000));
-            task->speedLabel->setText(QString("Скорость: %1 • Осталось: %2")
-                .arg(parts.value(1).trimmed(), parts.value(2).trimmed()));
-        }
-        if (newline < 0) break;
-    }
-}
-
-void MainWindow::finishTask(Task* task, int exitCode) {
-    consumeTaskOutput(task, true);
-    task->running = false;
-    task->completed = true;
-    runningCount_ = qMax(0, runningCount_ - 1);
-    if (exitCode == 0) {
-        task->progress->setValue(1000);
-        task->statusLabel->setText("Загрузка завершена");
-        task->cancelButton->setText("Открыть");
-        disconnect(task->cancelButton, nullptr, this, nullptr);
-        connect(task->cancelButton, &QPushButton::clicked, this, [this, task] { openPath(task->outputPath); });
-        addHistory(task, "completed");
-        if (autoOpenCheck_->isChecked()) openPath(task->outputPath);
-    } else {
-        const QString error = sanitizeError(task->stderrText);
-        task->statusLabel->setText(error);
-        task->cancelButton->setText("Удалить карточку");
-        addHistory(task, "failed", error);
-    }
-    task->process->deleteLater();
-    task->process = nullptr;
-    updateQueueStatus();
-    startNextDownloads();
-}
-
-void MainWindow::cancelTask(Task* task) {
-    if (task->completed) { task->card->hide(); return; }
-    pending_.removeAll(task->id);
-    if (task->process) task->process->kill();
-    else {
-        task->completed = true;
-        task->statusLabel->setText("Отменено");
-        addHistory(task, "cancelled", "Отменено пользователем");
-    }
-    updateQueueStatus();
+    auto preset = formatPreset(formatCombo_->currentData().toString());
+    const int advanced = advancedCombo_->currentData().toInt();
+    if (advancedCombo_->isVisible() && checkedUrl_ == url && advanced >= 0 && advanced < checkedMetadata_.formats.size())
+        preset = checkedMetadata_.formats[advanced].preset;
+    downloads_->enqueue({url, checkedUrl_ == url ? checkedMetadata_.title : url, outputEdit_->text(), preset});
+    urlEdit_->clear(); downloads_->start();
 }
 
 void MainWindow::updateQueueStatus() {
-    queueStatus_->setText(QString("Активных: %1 • В очереди: %2").arg(runningCount_).arg(pending_.size()));
-}
-
-void MainWindow::addHistory(Task* task, const QString& status, const QString& error) {
-    QJsonArray array;
-    QFile input(paths_.historyFile);
-    if (input.open(QIODevice::ReadOnly)) array = QJsonDocument::fromJson(input.readAll()).array();
-    array.prepend(QJsonObject{{"id", task->id}, {"title", task->title}, {"url", task->url},
-        {"path", task->outputPath}, {"format", task->preset.label}, {"status", status}, {"error", error},
-        {"created_at", QDateTime::currentDateTimeUtc().toString(Qt::ISODate)}});
-    while (array.size() > 500) array.removeLast();
-    QSaveFile output(paths_.historyFile);
-    if (output.open(QIODevice::WriteOnly)) { output.write(QJsonDocument(array).toJson()); output.commit(); }
-    loadHistory(historySearch_->text());
+    queueStatus_->setText(QString("Активных: %1 • В очереди: %2").arg(downloads_->runningCount()).arg(downloads_->queuedCount()));
 }
 
 void MainWindow::loadHistory(const QString& query) {
     if (!historyList_) return;
     historyList_->clear();
-    QFile input(paths_.historyFile);
-    if (!input.open(QIODevice::ReadOnly)) return;
-    for (const auto& value : QJsonDocument::fromJson(input.readAll()).array()) {
-        const auto item = value.toObject();
-        const QString haystack = item.value("title").toString() + " " + item.value("url").toString();
-        if (!query.isEmpty() && !haystack.contains(query, Qt::CaseInsensitive)) continue;
-        auto* row = new QListWidgetItem(QString("%1  •  %2  •  %3")
-            .arg(item.value("title").toString(), item.value("format").toString(), item.value("status").toString()));
-        row->setToolTip(item.value("url").toString());
-        row->setData(Qt::UserRole, item.value("path").toString());
+    for (const auto& record : history_.newestFirst(query)) {
+        const auto& task = record.task;
+        const auto date = record.completedAt.toTimeZone(QTimeZone::fromSecondsAheadOfUtc(3 * 3600));
+        auto* row = new QListWidgetItem(QString("%1 • %2 • %3 • %4 MSK")
+            .arg(task.title, task.formatLabel, taskStateLabel(task.state), date.toString("dd.MM.yyyy HH:mm")));
+        row->setToolTip(redactSecrets(task.url + "\n" + task.errorMessage));
+        row->setData(Qt::UserRole, task.outputPath); row->setData(Qt::UserRole + 1, task.id);
         historyList_->addItem(row);
     }
 }
@@ -838,8 +878,9 @@ void MainWindow::chooseOutputDirectory() {
 }
 
 void MainWindow::showMessage(const QString& text, bool error) {
-    statusBar()->showMessage(text, 8000);
-    if (error) QMessageBox::warning(this, "Video Downloader Pro", text);
+    statusBar()->showMessage(redactSecrets(text), 8000);
+    if (error) { lastError_ = redactSecrets(text); appendBoundedLog(paths_.logsDir, "app", lastError_); }
+    if (error && toolLog_) toolLog_->append(lastError_);
 }
 
 void MainWindow::openPath(const QString& path) {
@@ -851,13 +892,11 @@ void MainWindow::openPath(const QString& path) {
 }
 
 void MainWindow::closeEvent(QCloseEvent* event) {
-    if (runningCount_ > 0 && QMessageBox::question(this, "Выход", "Есть активные загрузки. Отменить и выйти?") != QMessageBox::Yes) {
-        event->ignore();
-        return;
+    if (updater_->isBusy() || runtime_->isBusy()) {
+        showMessage("Дождитесь завершения операции runtime или отмените загрузку обновления.");
+        event->ignore(); return;
     }
-    for (auto* task : tasks_) if (task->process) task->process->kill();
-    saveSettings();
-    event->accept();
+    downloads_->shutdown(); saveSettings(); event->accept();
 }
 
 } // namespace vdp

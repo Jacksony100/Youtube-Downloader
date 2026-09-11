@@ -1,35 +1,58 @@
 name: Build Windows x64 (C++)
-
 on:
   push:
     branches: [main]
+  pull_request:
+    branches: [main]
   workflow_dispatch:
-
+  workflow_call:
+permissions:
+  contents: read
 jobs:
   build:
     runs-on: windows-latest
+    timeout-minutes: 45
     steps:
       - uses: actions/checkout@v4
-
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.13'
+      - uses: ilammy/msvc-dev-cmd@v1
+        with:
+          arch: x64
       - name: Install Qt
         uses: jurplel/install-qt-action@v4
         with:
-          version: "6.10.2"
-          arch: win64_mingw
+          version: '6.8.3'
+          arch: win64_msvc2022_64
           cache: true
-
       - name: Install Inno Setup
         shell: pwsh
         run: choco install innosetup --yes --no-progress
-
-      - name: Build and test native release
+      - name: Canonical version
+        id: version
         shell: pwsh
-        run: ./scripts/build_release_windows.ps1 -QtDir "$env:QT_ROOT_DIR\lib\cmake\Qt6"
-
+        run: '"value=$(python scripts/release_tools.py version)" >> $env:GITHUB_OUTPUT'
+      - name: Build, test and package
+        shell: pwsh
+        env:
+          CERT_BASE64: ${{ secrets.WINDOWS_SIGN_CERT_BASE64 }}
+          VDP_SIGN_CERT_PASSWORD: ${{ secrets.WINDOWS_SIGN_CERT_PASSWORD }}
+        run: |
+          if ($env:CERT_BASE64) {
+            $env:VDP_SIGN_CERT_PATH = Join-Path $env:RUNNER_TEMP 'vdp-sign.pfx'
+            [IO.File]::WriteAllBytes($env:VDP_SIGN_CERT_PATH, [Convert]::FromBase64String($env:CERT_BASE64))
+          }
+          try {
+            ./scripts/build_release_windows.ps1 -QtDir "$env:QT_ROOT_DIR"
+          } finally {
+            if ($env:VDP_SIGN_CERT_PATH) { Remove-Item -LiteralPath $env:VDP_SIGN_CERT_PATH -Force }
+          }
       - uses: actions/upload-artifact@v4
         with:
-          name: VideoDownloaderPro-win-x64
+          name: VideoDownloaderPro-${{ steps.version.outputs.value }}-windows
           path: |
-            dist/VideoDownloaderPro-win-x64.zip
-            dist/VideoDownloaderPro-Setup-4.0.2.exe
+            dist/VideoDownloaderPro-${{ steps.version.outputs.value }}-win-x64.zip
+            dist/VideoDownloaderPro-Setup-${{ steps.version.outputs.value }}.exe
+            dist/SHA256SUMS-windows.txt
           if-no-files-found: error

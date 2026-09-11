@@ -1,0 +1,19 @@
+test_ambiguous_checksum (test_release_tools.ReleaseSecurityTests.test_ambiguous_checksum) ... ok
+test_archive_binary_and_duplicate (test_release_tools.ReleaseSecurityTests.test_archive_binary_and_duplicate) ... ok
+test_archive_does_not_trust_paths (test_release_tools.ReleaseSecurityTests.test_archive_does_not_trust_paths) ... ok
+test_bsd_filename (test_release_tools.ReleaseSecurityTests.test_bsd_filename) ... ok
+test_cmake_version (test_release_tools.ReleaseSecurityTests.test_cmake_version) ... ok
+test_exact_gnu_filename (test_release_tools.ReleaseSecurityTests.test_exact_gnu_filename) ... ok
+test_https_only (test_release_tools.ReleaseSecurityTests.test_https_only) ... ok
+test_lock_schema_integrity (test_release_tools.ReleaseSecurityTests.test_lock_schema_integrity) ... ok
+test_powershell_checksum_document (test_release_tools.ReleaseSecurityTests.test_powershell_checksum_document) ... ok
+test_single_document_only (test_release_tools.ReleaseSecurityTests.test_single_document_only) ... ok
+test_smoke_is_bounded_and_isolated (test_release_tools.ReleaseSecurityTests.test_smoke_is_bounded_and_isolated) ... ok
+test_smoke_rejects_unverified_runtime (test_release_tools.ReleaseSecurityTests.test_smoke_rejects_unverified_runtime) ... ok
+test_unsafe_paths (test_release_tools.ReleaseSecurityTests.test_unsafe_paths) ... ok
+
+----------------------------------------------------------------------
+Ran 13 tests in 0.017s
+
+OK
+[OK] Packaged smoke passed: C:\Users\89299\Documents\ChatGPT\YouTube Downloader\scripts\test_release_tools.py

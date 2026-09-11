@@ -1,0 +1,6 @@
+[0/2] Re-checking globbed directories...
+[1/6] Automatic MOC and UIC for target vdp_core
+[2/5] Building CXX object CMakeFiles\vdp_core.dir\src\core.cpp.obj
+[3/5] Linking CXX static library vdp_core.lib
+[4/5] Linking CXX executable VideoDownloaderPro.exe
+PASS: production Release build, BUILD_TESTING=OFF, final working tree.

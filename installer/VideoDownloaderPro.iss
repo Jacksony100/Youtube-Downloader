@@ -1,9 +1,9 @@
 #ifndef AppVersion
-  #define AppVersion "4.0.2"
+  #error AppVersion must be supplied by the release script from CMake
 #endif
 
 #ifndef PackageDir
-  #define PackageDir "..\dist\VideoDownloaderPro-win-x64"
+  #error PackageDir must be supplied by the release script
 #endif
 
 #ifndef OutputDir
@@ -34,6 +34,9 @@ SolidCompression=yes
 WizardStyle=modern
 CloseApplications=yes
 RestartApplications=no
+Uninstallable=not IsSmokeTest
+CreateUninstallRegKey=not IsSmokeTest
+UsePreviousAppDir=not IsSmokeTest
 VersionInfoVersion={#AppVersion}.0
 VersionInfoCompany=Jacksony100
 VersionInfoDescription=Video Downloader Pro Installer
@@ -51,8 +54,14 @@ Name: "desktopicon"; Description: "{cm:CreateDesktopIcon}"; GroupDescription: "{
 Source: "{#PackageDir}\*"; DestDir: "{app}"; Flags: ignoreversion recursesubdirs createallsubdirs
 
 [Icons]
-Name: "{group}\Video Downloader Pro"; Filename: "{app}\VideoDownloaderPro.exe"; WorkingDir: "{app}"
-Name: "{autodesktop}\Video Downloader Pro"; Filename: "{app}\VideoDownloaderPro.exe"; WorkingDir: "{app}"; Tasks: desktopicon
+Name: "{group}\Video Downloader Pro"; Filename: "{app}\VideoDownloaderPro.exe"; WorkingDir: "{app}"; Check: not IsSmokeTest
+Name: "{autodesktop}\Video Downloader Pro"; Filename: "{app}\VideoDownloaderPro.exe"; WorkingDir: "{app}"; Tasks: desktopicon; Check: not IsSmokeTest
 
 [Run]
 Filename: "{app}\VideoDownloaderPro.exe"; Description: "{cm:LaunchProgram,Video Downloader Pro}"; Flags: nowait postinstall skipifsilent
+
+[Code]
+function IsSmokeTest: Boolean;
+begin
+  Result := ExpandConstant('{param:SMOKETEST|0}') = '1';
+end;

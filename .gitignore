@@ -20,3 +20,4 @@ build_assets/icon.iconset/
 
 .wine-winbuild/
 build_tools/
+build_assets/pro5-*/

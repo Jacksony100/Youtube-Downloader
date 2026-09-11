@@ -1,0 +1,383 @@
+{
+  "schema": 1,
+  "tools": {
+    "yt-dlp-windows-x64": {
+      "toolId": "yt-dlp",
+      "artifacts": [
+        {
+          "checksumUrl": "https://github.com/yt-dlp/yt-dlp/releases/latest/download/SHA2-256SUMS",
+          "archive": false,
+          "fileName": "yt-dlp.exe",
+          "binaries": [
+            {
+              "versionArgs": [
+                "--version"
+              ],
+              "target": "yt-dlp",
+              "name": "yt-dlp.exe"
+            }
+          ],
+          "singleArtifactChecksum": false,
+          "url": "https://github.com/yt-dlp/yt-dlp/releases/latest/download/yt-dlp.exe"
+        }
+      ]
+    },
+    "deno-windows-x64": {
+      "toolId": "deno",
+      "artifacts": [
+        {
+          "checksumUrl": "https://github.com/denoland/deno/releases/latest/download/deno-x86_64-pc-windows-msvc.zip.sha256sum",
+          "archive": true,
+          "fileName": "deno-x86_64-pc-windows-msvc.zip",
+          "binaries": [
+            {
+              "versionArgs": [
+                "--version"
+              ],
+              "target": "deno",
+              "name": "deno.exe"
+            }
+          ],
+          "singleArtifactChecksum": true,
+          "url": "https://github.com/denoland/deno/releases/latest/download/deno-x86_64-pc-windows-msvc.zip"
+        }
+      ]
+    },
+    "yt-dlp-windows-arm64": {
+      "toolId": "yt-dlp",
+      "artifacts": [
+        {
+          "checksumUrl": "https://github.com/yt-dlp/yt-dlp/releases/latest/download/SHA2-256SUMS",
+          "archive": false,
+          "fileName": "yt-dlp_arm64.exe",
+          "binaries": [
+            {
+              "versionArgs": [
+                "--version"
+              ],
+              "target": "yt-dlp",
+              "name": "yt-dlp.exe"
+            }
+          ],
+          "singleArtifactChecksum": false,
+          "url": "https://github.com/yt-dlp/yt-dlp/releases/latest/download/yt-dlp_arm64.exe"
+        }
+      ]
+    },
+    "deno-windows-arm64": {
+      "toolId": "deno",
+      "artifacts": [
+        {
+          "checksumUrl": "https://github.com/denoland/deno/releases/latest/download/deno-aarch64-pc-windows-msvc.zip.sha256sum",
+          "archive": true,
+          "fileName": "deno-aarch64-pc-windows-msvc.zip",
+          "binaries": [
+            {
+              "versionArgs": [
+                "--version"
+              ],
+              "target": "deno",
+              "name": "deno.exe"
+            }
+          ],
+          "singleArtifactChecksum": true,
+          "url": "https://github.com/denoland/deno/releases/latest/download/deno-aarch64-pc-windows-msvc.zip"
+        }
+      ]
+    },
+    "yt-dlp-macos-x64": {
+      "toolId": "yt-dlp",
+      "artifacts": [
+        {
+          "checksumUrl": "https://github.com/yt-dlp/yt-dlp/releases/latest/download/SHA2-256SUMS",
+          "archive": false,
+          "fileName": "yt-dlp_macos",
+          "binaries": [
+            {
+              "versionArgs": [
+                "--version"
+              ],
+              "target": "yt-dlp",
+              "name": "yt-dlp"
+            }
+          ],
+          "singleArtifactChecksum": false,
+          "url": "https://github.com/yt-dlp/yt-dlp/releases/latest/download/yt-dlp_macos"
+        }
+      ]
+    },
+    "deno-macos-x64": {
+      "toolId": "deno",
+      "artifacts": [
+        {
+          "checksumUrl": "https://github.com/denoland/deno/releases/latest/download/deno-x86_64-apple-darwin.zip.sha256sum",
+          "archive": true,
+          "fileName": "deno-x86_64-apple-darwin.zip",
+          "binaries": [
+            {
+              "versionArgs": [
+                "--version"
+              ],
+              "target": "deno",
+              "name": "deno"
+            }
+          ],
+          "singleArtifactChecksum": true,
+          "url": "https://github.com/denoland/deno/releases/latest/download/deno-x86_64-apple-darwin.zip"
+        }
+      ]
+    },
+    "yt-dlp-macos-arm64": {
+      "toolId": "yt-dlp",
+      "artifacts": [
+        {
+          "checksumUrl": "https://github.com/yt-dlp/yt-dlp/releases/latest/download/SHA2-256SUMS",
+          "archive": false,
+          "fileName": "yt-dlp_macos",
+          "binaries": [
+            {
+              "versionArgs": [
+                "--version"
+              ],
+              "target": "yt-dlp",
+              "name": "yt-dlp"
+            }
+          ],
+          "singleArtifactChecksum": false,
+          "url": "https://github.com/yt-dlp/yt-dlp/releases/latest/download/yt-dlp_macos"
+        }
+      ]
+    },
+    "deno-macos-arm64": {
+      "toolId": "deno",
+      "artifacts": [
+        {
+          "checksumUrl": "https://github.com/denoland/deno/releases/latest/download/deno-aarch64-apple-darwin.zip.sha256sum",
+          "archive": true,
+          "fileName": "deno-aarch64-apple-darwin.zip",
+          "binaries": [
+            {
+              "versionArgs": [
+                "--version"
+              ],
+              "target": "deno",
+              "name": "deno"
+            }
+          ],
+          "singleArtifactChecksum": true,
+          "url": "https://github.com/denoland/deno/releases/latest/download/deno-aarch64-apple-darwin.zip"
+        }
+      ]
+    },
+    "yt-dlp-linux-x64": {
+      "toolId": "yt-dlp",
+      "artifacts": [
+        {
+          "checksumUrl": "https://github.com/yt-dlp/yt-dlp/releases/latest/download/SHA2-256SUMS",
+          "archive": false,
+          "fileName": "yt-dlp",
+          "binaries": [
+            {
+              "versionArgs": [
+                "--version"
+              ],
+              "target": "yt-dlp",
+              "name": "yt-dlp"
+            }
+          ],
+          "singleArtifactChecksum": false,
+          "url": "https://github.com/yt-dlp/yt-dlp/releases/latest/download/yt-dlp"
+        }
+      ]
+    },
+    "deno-linux-x64": {
+      "toolId": "deno",
+      "artifacts": [
+        {
+          "checksumUrl": "https://github.com/denoland/deno/releases/latest/download/deno-x86_64-unknown-linux-gnu.zip.sha256sum",
+          "archive": true,
+          "fileName": "deno-x86_64-unknown-linux-gnu.zip",
+          "binaries": [
+            {
+              "versionArgs": [
+                "--version"
+              ],
+              "target": "deno",
+              "name": "deno"
+            }
+          ],
+          "singleArtifactChecksum": true,
+          "url": "https://github.com/denoland/deno/releases/latest/download/deno-x86_64-unknown-linux-gnu.zip"
+        }
+      ]
+    },
+    "yt-dlp-linux-arm64": {
+      "toolId": "yt-dlp",
+      "artifacts": [
+        {
+          "checksumUrl": "https://github.com/yt-dlp/yt-dlp/releases/latest/download/SHA2-256SUMS",
+          "archive": false,
+          "fileName": "yt-dlp",
+          "binaries": [
+            {
+              "versionArgs": [
+                "--version"
+              ],
+              "target": "yt-dlp",
+              "name": "yt-dlp"
+            }
+          ],
+          "singleArtifactChecksum": false,
+          "url": "https://github.com/yt-dlp/yt-dlp/releases/latest/download/yt-dlp"
+        }
+      ]
+    },
+    "deno-linux-arm64": {
+      "toolId": "deno",
+      "artifacts": [
+        {
+          "checksumUrl": "https://github.com/denoland/deno/releases/latest/download/deno-aarch64-unknown-linux-gnu.zip.sha256sum",
+          "archive": true,
+          "fileName": "deno-aarch64-unknown-linux-gnu.zip",
+          "binaries": [
+            {
+              "versionArgs": [
+                "--version"
+              ],
+              "target": "deno",
+              "name": "deno"
+            }
+          ],
+          "singleArtifactChecksum": true,
+          "url": "https://github.com/denoland/deno/releases/latest/download/deno-aarch64-unknown-linux-gnu.zip"
+        }
+      ]
+    },
+    "ffmpeg-windows-x64": {
+      "toolId": "ffmpeg",
+      "artifacts": [
+        {
+          "checksumUrl": "https://www.gyan.dev/ffmpeg/builds/ffmpeg-release-essentials.zip.sha256",
+          "archive": true,
+          "fileName": "ffmpeg-release-essentials.zip",
+          "binaries": [
+            {
+              "versionArgs": [
+                "-version"
+              ],
+              "target": "ffmpeg",
+              "name": "ffmpeg.exe"
+            },
+            {
+              "versionArgs": [
+                "-version"
+              ],
+              "target": "ffprobe",
+              "name": "ffprobe.exe"
+            }
+          ],
+          "singleArtifactChecksum": true,
+          "url": "https://www.gyan.dev/ffmpeg/builds/ffmpeg-release-essentials.zip"
+        }
+      ]
+    },
+    "ffmpeg-windows-arm64": {
+      "toolId": "ffmpeg",
+      "artifacts": [
+        {
+          "checksumUrl": "https://www.gyan.dev/ffmpeg/builds/ffmpeg-release-essentials.zip.sha256",
+          "archive": true,
+          "fileName": "ffmpeg-release-essentials.zip",
+          "binaries": [
+            {
+              "versionArgs": [
+                "-version"
+              ],
+              "target": "ffmpeg",
+              "name": "ffmpeg.exe"
+            },
+            {
+              "versionArgs": [
+                "-version"
+              ],
+              "target": "ffprobe",
+              "name": "ffprobe.exe"
+            }
+          ],
+          "singleArtifactChecksum": true,
+          "url": "https://www.gyan.dev/ffmpeg/builds/ffmpeg-release-essentials.zip"
+        }
+      ]
+    },
+    "ffmpeg-macos-x64": {
+      "toolId": "ffmpeg",
+      "artifacts": [
+        {
+          "binaries": [
+            {
+              "versionArgs": [
+                "-version"
+              ],
+              "target": "ffmpeg",
+              "name": "ffmpeg"
+            }
+          ],
+          "sha256": "8a8c9e549983409fe6604b9aa665648b7a5def9407fe814c39c8b2ea7f64a48f",
+          "url": "https://evermeet.cx/ffmpeg/ffmpeg-9.0.1.zip",
+          "archive": true,
+          "fileName": "ffmpeg-9.0.1.zip"
+        },
+        {
+          "binaries": [
+            {
+              "versionArgs": [
+                "-version"
+              ],
+              "target": "ffprobe",
+              "name": "ffprobe"
+            }
+          ],
+          "sha256": "d13f35db03456b7f65b7edb6437c86e23810fbfe91795e571f5b77211343b4f1",
+          "url": "https://evermeet.cx/ffmpeg/ffprobe-9.0.1.zip",
+          "archive": true,
+          "fileName": "ffprobe-9.0.1.zip"
+        }
+      ]
+    },
+    "ffmpeg-macos-arm64": {
+      "toolId": "ffmpeg",
+      "artifacts": [
+        {
+          "binaries": [
+            {
+              "versionArgs": [
+                "-version"
+              ],
+              "target": "ffmpeg",
+              "name": "ffmpeg"
+            }
+          ],
+          "sha256": "8a8c9e549983409fe6604b9aa665648b7a5def9407fe814c39c8b2ea7f64a48f",
+          "url": "https://evermeet.cx/ffmpeg/ffmpeg-9.0.1.zip",
+          "archive": true,
+          "fileName": "ffmpeg-9.0.1.zip"
+        },
+        {
+          "binaries": [
+            {
+              "versionArgs": [
+                "-version"
+              ],
+              "target": "ffprobe",
+              "name": "ffprobe"
+            }
+          ],
+          "sha256": "d13f35db03456b7f65b7edb6437c86e23810fbfe91795e571f5b77211343b4f1",
+          "url": "https://evermeet.cx/ffmpeg/ffprobe-9.0.1.zip",
+          "archive": true,
+          "fileName": "ffprobe-9.0.1.zip"
+        }
+      ]
+    }
+  }
+}

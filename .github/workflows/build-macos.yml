@@ -1,28 +1,64 @@
 name: Build macOS (C++)
-
 on:
   push:
     branches: [main]
+  pull_request:
+    branches: [main]
   workflow_dispatch:
-
+  workflow_call:
+permissions:
+  contents: read
 jobs:
   build:
-    runs-on: macos-latest
+    # Evermeet's reviewed FFmpeg artifacts target Intel; Apple Silicon needs Rosetta.
+    runs-on: macos-15-intel
+    timeout-minutes: 45
     steps:
       - uses: actions/checkout@v4
-
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.13'
       - name: Install Qt
         uses: jurplel/install-qt-action@v4
         with:
-          version: "6.10.2"
+          version: '6.8.3'
           cache: true
-
-      - name: Build and test native release
-        shell: bash
-        run: ./scripts/build_release.sh
-
+      - name: Canonical version
+        id: version
+        run: echo "value=$(python3 scripts/release_tools.py version)" >> "$GITHUB_OUTPUT"
+      - name: Build, test and package
+        env:
+          CERT_BASE64: ${{ secrets.MAC_SIGN_CERT_BASE64 }}
+          CERT_PASSWORD: ${{ secrets.MAC_SIGN_CERT_PASSWORD }}
+          VDP_MAC_SIGN_IDENTITY: ${{ secrets.MAC_SIGN_IDENTITY }}
+          APPLE_ID: ${{ secrets.APPLE_ID }}
+          APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+          APPLE_APP_PASSWORD: ${{ secrets.APPLE_APP_PASSWORD }}
+        run: |
+          if [[ -n "$CERT_BASE64" ]]; then
+            KEYCHAIN="$RUNNER_TEMP/vdp-sign.keychain-db"
+            CERT="$RUNNER_TEMP/vdp-sign.p12"
+            KEYCHAIN_PASSWORD="$(openssl rand -hex 32)"
+            echo "::add-mask::$KEYCHAIN_PASSWORD"
+            trap 'security delete-keychain "$KEYCHAIN"; rm -f "$CERT"' EXIT
+            printf '%s' "$CERT_BASE64" | base64 --decode > "$CERT"
+            security create-keychain -p "$KEYCHAIN_PASSWORD" "$KEYCHAIN"
+            security set-keychain-settings -lut 21600 "$KEYCHAIN"
+            security unlock-keychain -p "$KEYCHAIN_PASSWORD" "$KEYCHAIN"
+            security import "$CERT" -P "$CERT_PASSWORD" -A -t cert -f pkcs12 -k "$KEYCHAIN"
+            security list-keychains -d user -s "$KEYCHAIN"
+            security default-keychain -d user -s "$KEYCHAIN"
+            security set-key-partition-list -S apple-tool:,apple: -s -k "$KEYCHAIN_PASSWORD" "$KEYCHAIN"
+            if [[ -n "$APPLE_ID" && -n "$APPLE_TEAM_ID" && -n "$APPLE_APP_PASSWORD" ]]; then
+              xcrun notarytool store-credentials vdp-ci --apple-id "$APPLE_ID" --team-id "$APPLE_TEAM_ID" --password "$APPLE_APP_PASSWORD" --keychain "$KEYCHAIN"
+              export VDP_MAC_NOTARY_PROFILE=vdp-ci
+            fi
+          fi
+          bash scripts/build_release.sh
       - uses: actions/upload-artifact@v4
         with:
-          name: VideoDownloaderPro-macOS
-          path: dist/VideoDownloaderPro-macOS.zip
+          name: VideoDownloaderPro-${{ steps.version.outputs.value }}-macos
+          path: |
+            dist/VideoDownloaderPro-${{ steps.version.outputs.value }}-macos-x64.zip
+            dist/SHA256SUMS-macos.txt
           if-no-files-found: error

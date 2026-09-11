@@ -1,0 +1,49 @@
+name: Release tagged version
+on:
+  push:
+    tags: ['v*']
+permissions:
+  contents: read
+jobs:
+  version:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Require tag to match CMake version
+        run: test "$GITHUB_REF_NAME" = "v$(python3 scripts/release_tools.py version)"
+  windows:
+    needs: version
+    uses: ./.github/workflows/build-windows-x64.yml
+    secrets: inherit
+  macos:
+    needs: version
+    uses: ./.github/workflows/build-macos.yml
+    secrets: inherit
+  publish:
+    needs: [windows, macos]
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/download-artifact@v4
+        with:
+          pattern: VideoDownloaderPro-*
+          path: release-artifacts
+          merge-multiple: true
+      - name: Verify complete distributable set and checksums
+        run: |
+          VERSION="$(python3 scripts/release_tools.py version)"
+          cd release-artifacts
+          test -s "VideoDownloaderPro-$VERSION-win-x64.zip"
+          test -s "VideoDownloaderPro-Setup-$VERSION.exe"
+          test -s "VideoDownloaderPro-$VERSION-macos-x64.zip"
+          sha256sum --check SHA256SUMS-windows.txt
+          sha256sum --check SHA256SUMS-macos.txt
+          cat SHA256SUMS-windows.txt SHA256SUMS-macos.txt > SHA256SUMS
+      - name: Publish both successful platforms
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release create "$GITHUB_REF_NAME" --verify-tag --generate-notes \
+            release-artifacts/*.exe release-artifacts/*.zip release-artifacts/SHA256SUMS

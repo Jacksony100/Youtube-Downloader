@@ -1,0 +1,10 @@
+[OK] Packaged smoke passed: C:\Users\89299\Documents\ChatGPT\YouTube Downloader\scripts\test_release_tools.py
+[OK] Runtime lock schema and integrity sources
+[OK] Verified cached runtime: C:\Users\89299\Documents\ChatGPT\YouTube Downloader\build_assets\pro5-toolchain-windows-x64
+100% tests passed, 0 tests failed out of 15
+Total Test time (real) =  16.86 sec
+[OK] Real engine MP4 + MP3 smoke passed with production arguments: C:\Users\89299\Documents\ChatGPT\YouTube Downloader\build-cpp\pro5-package\engine-smoke-c33035b876dd4778ba809786a27b6491
+[OK] Packaged smoke passed: C:\Users\89299\Documents\ChatGPT\YouTube Downloader\dist\staging-c33035b876dd4778ba809786a27b6491\VideoDownloaderPro-5.0.0-win-x64\VideoDownloaderPro.exe
+Successful compile (156,859 sec). Resulting Setup program filename is:
+[OK] Packaged smoke passed: C:\Users\89299\Documents\ChatGPT\YouTube Downloader\build-cpp\pro5-package\installer-smoke-c33035b876dd4778ba809786a27b6491\app\VideoDownloaderPro.exe
+[OK] Windows package and installer passed smoke: 5.0.0

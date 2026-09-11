@@ -1,0 +1,36 @@
+{
+  "validatedAtMSK": "2026-09-11T10:32:43.214871+03:00",
+  "argumentsSource": "vdp::buildDownloadArguments",
+  "runs": [
+    {
+      "preset": "best",
+      "sha256": "dbef2da7740517fc17709555e4df9fe55eb68ec063224dcd5c2033a4e6e17d6d",
+      "bytes": 58648,
+      "streams": [
+        {
+          "codec_name": "h264",
+          "codec_type": "video"
+        },
+        {
+          "codec_name": "aac",
+          "codec_type": "audio"
+        }
+      ],
+      "progress": true,
+      "postProcessing": true
+    },
+    {
+      "preset": "mp3",
+      "sha256": "ba301d0d3ee5460fb388cd9c23ebde24df1064cb49caa8afe3a9db9e0cfff5b0",
+      "bytes": 49674,
+      "streams": [
+        {
+          "codec_name": "mp3",
+          "codec_type": "audio"
+        }
+      ],
+      "progress": true,
+      "postProcessing": true
+    }
+  ]
+}

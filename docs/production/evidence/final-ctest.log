@@ -1,0 +1,36 @@
+Internal ctest changing into directory: C:/Users/89299/Documents/ChatGPT/YouTube Downloader/build-cpp/pro5
+Test project C:/Users/89299/Documents/ChatGPT/YouTube Downloader/build-cpp/pro5
+      Start  1: release-script-security-tests
+ 1/15 Test  #1: release-script-security-tests ....   Passed    0.43 sec
+      Start  2: test_checksum_parser
+ 2/15 Test  #2: test_checksum_parser .............   Passed    0.03 sec
+      Start  3: test_core
+ 3/15 Test  #3: test_core ........................   Passed    0.03 sec
+      Start  4: test_diagnostics
+ 4/15 Test  #4: test_diagnostics .................   Passed    0.08 sec
+      Start  5: test_download_manager
+ 5/15 Test  #5: test_download_manager ............   Passed    2.42 sec
+      Start  6: test_format_normalizer
+ 6/15 Test  #6: test_format_normalizer ...........   Passed    0.03 sec
+      Start  7: test_history_repository
+ 7/15 Test  #7: test_history_repository ..........   Passed    5.35 sec
+      Start  8: test_main_window
+ 8/15 Test  #8: test_main_window .................   Passed    1.18 sec
+      Start  9: test_metadata_service
+ 9/15 Test  #9: test_metadata_service ............   Passed    3.26 sec
+      Start 10: test_progress_parser
+10/15 Test #10: test_progress_parser .............   Passed    0.03 sec
+      Start 11: test_queue_store
+11/15 Test #11: test_queue_store .................   Passed    0.06 sec
+      Start 12: test_task_state
+12/15 Test #12: test_task_state ..................   Passed    0.03 sec
+      Start 13: test_tool_install
+13/15 Test #13: test_tool_install ................   Passed    0.06 sec
+      Start 14: test_tool_updater
+14/15 Test #14: test_tool_updater ................   Passed    1.64 sec
+      Start 15: test_toolchain_service
+15/15 Test #15: test_toolchain_service ...........   Passed    2.19 sec
+
+100% tests passed, 0 tests failed out of 15
+
+Total Test time (real) =  16.84 sec
