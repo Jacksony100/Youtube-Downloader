@@ -39,7 +39,7 @@ class ReleaseSecurityTests(unittest.TestCase):
     def test_unsafe_paths(self):
         with tempfile.TemporaryDirectory() as folder:
             root = Path(folder)
-            self.assertEqual(release.checked_child(root, root / "ok"), root / "ok")
+            self.assertEqual(release.checked_child(root, root / "ok"), (root / "ok").resolve())
             for path in (root, root / "../outside", root / "../sibling/file"):
                 with self.assertRaises(ValueError):
                     release.checked_child(root, path)
